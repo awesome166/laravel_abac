@@ -1,5 +1,5 @@
 {
-  "name": "awesome166/abac",
+  "name": "awesome166/laravel-abac",
   "description": "SaaS multi-tenancy and ABAC access control system with Zeus capabilities",
   "type": "library",
   "license": "MIT",
