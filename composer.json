@@ -1,49 +1,68 @@
 {
   "name": "awesome166/laravel-abac",
-  "description": "SaaS multi-tenancy and ABAC access control system with Zeus capabilities",
+  "description": "SaaS multi-tenancy and ABAC (Attribute-Based Access Control) system for Laravel",
+  "keywords": ["laravel", "abac", "access-control", "permissions", "multi-tenancy", "saas"],
   "type": "library",
   "license": "MIT",
-  "authors": [
-    {
-      "name": "awesome166",
-      "email": "joeymantey@gmail.com"
-    }
-  ],
+  "authors": [{
+    "name": "awesome166",
+    "email": "joeymantey@gmail.com",
+    "homepage": "https://github.com/awesome166"
+  }],
   "require": {
     "php": "^8.2",
-    "illuminate/support": "^10.0|^11.0",
-    "illuminate/database": "^10.0|^11.0",
-    "illuminate/auth": "^10.0|^11.0"
+    "illuminate/support": "^9.0|^10.0|^11.0",
+    "illuminate/database": "^9.0|^10.0|^11.0",
+    "illuminate/auth": "^9.0|^10.0|^11.0",
+    "illuminate/console": "^9.0|^10.0|^11.0",
+    "illuminate/http": "^9.0|^10.0|^11.0",
+    "illuminate/filesystem": "^9.0|^10.0|^11.0"
   },
   "require-dev": {
-    "orchestra/testbench": "^8.0|^9.0",
+    "orchestra/testbench": "^7.0|^8.0|^9.0",
     "pestphp/pest": "^2.0|^3.0",
     "pestphp/pest-plugin-laravel": "^2.0|^3.0",
-    "phpstan/phpstan": "^1.10"
+    "phpstan/phpstan": "^1.10",
+    "mockery/mockery": "^1.6"
   },
   "autoload": {
     "psr-4": {
-      "Awesome\\Abac\\": "src/"
-    }
+      "Awesome166\\LaravelAbac\\": "src/"
+    },
+    "files": [
+      "src/helpers.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {
-      "Awesome\\Abac\\Tests\\": "tests/"
+      "Awesome166\\LaravelAbac\\Tests\\": "tests/"
     }
   },
   "extra": {
     "laravel": {
       "providers": [
-        "Awesome\\Abac\\AwesomeAbacServiceProvider"
+        "Awesome166\\LaravelAbac\\LaravelAbacServiceProvider"
       ],
       "aliases": {
-        "Abac": "Awesome\\Abac\\Facades\\Abac"
+        "Abac": "Awesome166\\LaravelAbac\\Facades\\Abac"
       }
     }
   },
   "config": {
     "allow-plugins": {
-      "pestphp/pest-plugin": true
-    }
+      "pestphp/pest-plugin": true,
+      "php-http/discovery": true
+    },
+    "sort-packages": true
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "scripts": {
+    "test": "pest",
+    "test-coverage": "pest --coverage",
+    "analyse": "phpstan analyse",
+    "post-autoload-dump": [
+      "@php ./vendor/bin/testbench package:discover"
+    ]
   }
 }
