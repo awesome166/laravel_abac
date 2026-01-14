@@ -1,4 +1,4 @@
-# AwesomeAbac (awesome/abac)
+# AbacPermissions (abacpermissions/abacpermissions)
 
 A comprehensive SaaS multi-tenancy and ABAC access control package for Laravel. Features row-level tenancy, database-backed roles/permissions, Zeus (System/Tenant) bypass capability, and automatic caching.
 
@@ -16,7 +16,7 @@ A comprehensive SaaS multi-tenancy and ABAC access control package for Laravel. 
 ## Installation
 
 ```bash
-composer require awesome/abac
+composer require abacpermissions/abacpermissions
 ```
 
 Run migrations:
@@ -30,7 +30,7 @@ php artisan migrate
 Publish config:
 
 ```bash
-php artisan vendor:publish --tag=awesome-abac-config
+php artisan vendor:publish --tag=abacpermissions-config
 ```
 
 Config allows toggling tenancy (`tenancy_enabled`) and customizing table names.
@@ -42,14 +42,14 @@ Config allows toggling tenancy (`tenancy_enabled`) and customizing table names.
 Add `HasAbac` trait to your User model:
 ```php
 class User extends Authenticatable {
-    use \Awesome\Abac\Traits\HasAbac;
+    use \AbacPermissions\Traits\HasAbac;
 }
 ```
 
 Add `UsesTenant` trait to tenant-aware models:
 ```php
 class Post extends Model {
-    use \Awesome\Abac\Tenancy\UsesTenant;
+    use \AbacPermissions\Tenancy\UsesTenant;
 }
 ```
 
@@ -117,7 +117,7 @@ Role::create(['name' => 'Owner', 'zeus_level' => 'tenant', 'account_id' => 1]); 
 
 Via Facade:
 ```php
-if (Abac::hasPermission($user, 'posts:create')) { ... }
+if (AbacPermissions::hasPermission($user, 'posts:create')) { ... }
 ```
 
 In Controller:
@@ -132,7 +132,7 @@ response JSON automatically includes effective permissions in `_permissions` if 
 Set context via middleware (`DetectAbacTenant`) looking for `X-Account-Slug` header, or manually:
 
 ```php
-app(\Awesome\Abac\Tenancy\TenantContext::class)->setAccount($account);
+app(\AbacPermissions\Tenancy\TenantContext::class)->setAccount($account);
 ```
 
 All `UsesTenant` models will automatically scoped to this account.
@@ -140,7 +140,7 @@ All `UsesTenant` models will automatically scoped to this account.
 ### 5. Activity Logging
 
 ```php
-app(\Awesome\Abac\Logging\ActivityLogger::class)->log('role.created', $role);
+app(\AbacPermissions\Logging\ActivityLogger::class)->log('role.created', $role);
 ```
 
 ### 6. Controller Helper Methods
@@ -150,7 +150,7 @@ The `AbacControllerHelper` trait provides convenient methods for managing permis
 #### Using the Helper Trait
 
 ```php
-use Awesome\Abac\Controllers\AbacControllerHelper;
+use AbacPermissions\Controllers\AbacControllerHelper;
 
 class PermissionController extends Controller
 {
@@ -369,7 +369,7 @@ User permission caches are automatically flushed when:
 #### Complete Example
 
 ```php
-use Awesome\Abac\Controllers\AbacControllerHelper;
+use AbacPermissions\Controllers\AbacControllerHelper;
 
 class AdminController extends Controller
 {
@@ -428,7 +428,7 @@ The package includes a seeder to generate basic permissions, roles, and a demo t
 // In database/seeders/DatabaseSeeder.php
 public function run()
 {
-    $this->call(\Awesome\Abac\Seeders\AwesomeAbacSeeder::class);
+    $this->call(\AbacPermissions\Seeders\AbacPermissionsSeeder::class);
 }
 ```
 

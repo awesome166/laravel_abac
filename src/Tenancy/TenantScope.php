@@ -1,17 +1,17 @@
 <?php
 
-namespace Awesome\Abac\Tenancy;
+namespace AbacPermissions\Tenancy;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Tenancy\TenantContext;
 
 class TenantScope implements Scope
 {
     public function apply(Builder $builder, Model $model)
     {
-        if (!config('awesome-abac.tenancy_enabled', true)) {
+        if (!config('abacpermissions.tenancy_enabled', true)) {
             return;
         }
 

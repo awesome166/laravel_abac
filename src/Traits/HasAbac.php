@@ -1,10 +1,10 @@
 <?php
 
-namespace Awesome\Abac\Traits;
+namespace AbacPermissions\Traits;
 
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Account;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Account;
 use Illuminate\Support\Facades\Cache;
 
 trait HasAbac
@@ -13,7 +13,7 @@ trait HasAbac
     {
         return $this->belongsToMany(
             Account::class,
-            config('awesome-abac.tables.account_user'),
+            config('abacpermissions.tables.account_user', 'account_user'),
             'user_id',
             'account_id'
         );
@@ -35,7 +35,7 @@ trait HasAbac
     public function assignedPermissions()
     {
         return $this->morphMany(
-            \Awesome\Abac\Models\AssignedPermission::class,
+            \AbacPermissions\Models\AssignedPermission::class,
             'assignee',
             'assignee_type',
             'assignee_id'
@@ -47,7 +47,7 @@ trait HasAbac
      */
     public function permissions()
     {
-        return \Awesome\Abac\Models\Permission::whereHas('assignments', function ($query) {
+        return \AbacPermissions\Models\Permission::whereHas('assignments', function ($query) {
             $query->where('assignee_type', 'user')
                 ->where('assignee_id', $this->id);
         });

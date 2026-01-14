@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\AssignedPermission;
-use Awesome\Abac\Facades\Abac;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Facades\AbacPermissions;
 
 class PivotAccessTest extends TestCase
 {
@@ -49,13 +49,13 @@ class PivotAccessTest extends TestCase
         // 5. Assertions
 
         // Editor
-        $this->assertTrue(Abac::hasPermission($ed, 'posts:create'));
-        $this->assertTrue(Abac::hasPermission($ed, 'posts:update'));
-        $this->assertFalse(Abac::hasPermission($ed, 'posts:delete'));
+        $this->assertTrue(AbacPermissions::hasPermission($ed, 'posts:create'));
+        $this->assertTrue(AbacPermissions::hasPermission($ed, 'posts:update'));
+        $this->assertFalse(AbacPermissions::hasPermission($ed, 'posts:delete'));
 
         // Viewer
-        $this->assertTrue(Abac::hasPermission($vi, 'posts:read'));
-        $this->assertFalse(Abac::hasPermission($vi, 'posts:create'));
-        $this->assertFalse(Abac::hasPermission($vi, 'posts:update'));
+        $this->assertTrue(AbacPermissions::hasPermission($vi, 'posts:read'));
+        $this->assertFalse(AbacPermissions::hasPermission($vi, 'posts:create'));
+        $this->assertFalse(AbacPermissions::hasPermission($vi, 'posts:update'));
     }
 }

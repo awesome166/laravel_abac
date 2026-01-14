@@ -1,8 +1,8 @@
 <?php
 
-namespace Awesome\Abac\Observers;
+namespace AbacPermissions\Observers;
 
-use Awesome\Abac\Models\Permission;
+use AbacPermissions\Models\Permission;
 use Illuminate\Support\Facades\Cache;
 
 class PermissionObserver
@@ -29,6 +29,6 @@ class PermissionObserver
         // Or better: clear just the affected keys if we track them. We don't.
 
         // Let's try to clear a specific "abac_version" key that prefixes all keys?
-        Cache::increment('awesome_abac_version');
+        Cache::increment('abacpermissions_version');
     }
 }

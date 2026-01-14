@@ -1,13 +1,13 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Facades\Abac;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Facades\AbacPermissions;
+use AbacPermissions\Tenancy\TenantContext;
 
 class AbacEngineTest extends TestCase
 {
@@ -30,7 +30,7 @@ class AbacEngineTest extends TestCase
         $user->roles()->attach($role); // Global assignment
 
         // Should have everything
-        $this->assertTrue(Abac::hasPermission($user, 'nuclear:launch'));
+        $this->assertTrue(AbacPermissions::hasPermission($user, 'nuclear:launch'));
     }
 
     /** @test */
@@ -49,10 +49,10 @@ class AbacEngineTest extends TestCase
 
         // Context: Acme
         app(TenantContext::class)->setAccount($account);
-        $this->assertTrue(Abac::hasPermission($user, 'posts:delete'));
+        $this->assertTrue(AbacPermissions::hasPermission($user, 'posts:delete'));
 
         // Context: Other
         app(TenantContext::class)->clear();
-        $this->assertFalse(Abac::hasPermission($user, 'posts:delete'));
+        $this->assertFalse(AbacPermissions::hasPermission($user, 'posts:delete'));
     }
 }

@@ -1,11 +1,11 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Http\Controllers\PermissionManagementController;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Http\Controllers\PermissionManagementController;
 use Illuminate\Http\Request;
 
 class PermissionManagementTest extends TestCase
@@ -41,7 +41,7 @@ class PermissionManagementTest extends TestCase
         $controller->sync($request, 'role', $role->id);
 
         // Verify assignment was created
-        $assignment = \Awesome\Abac\Models\AssignedPermission::where('assignee_id', $role->id)
+        $assignment = \AbacPermissions\Models\AssignedPermission::where('assignee_id', $role->id)
             ->where('assignee_type', 'role')
             ->where('permission_id', $perm->id)
             ->first();

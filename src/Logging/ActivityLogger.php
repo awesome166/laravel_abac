@@ -1,9 +1,9 @@
 <?php
 
-namespace Awesome\Abac\Logging;
+namespace AbacPermissions\Logging;
 
-use Awesome\Abac\Models\ActivityLog;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Models\ActivityLog;
+use AbacPermissions\Tenancy\TenantContext;
 
 class ActivityLogger
 {

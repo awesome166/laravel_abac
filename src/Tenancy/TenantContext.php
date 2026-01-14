@@ -1,8 +1,8 @@
 <?php
 
-namespace Awesome\Abac\Tenancy;
+namespace AbacPermissions\Tenancy;
 
-use Awesome\Abac\Models\Account;
+use AbacPermissions\Models\Account;
 
 class TenantContext
 {

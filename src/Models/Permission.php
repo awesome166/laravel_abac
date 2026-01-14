@@ -1,6 +1,6 @@
 <?php
 
-namespace Awesome\Abac\Models;
+namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,7 +14,7 @@ class Permission extends Model
     public function assignments()
     {
         return $this->hasMany(
-            config('awesome-abac.models.assigned_permission', AssignedPermission::class),
+            config('abacpermissions.models.assigned_permission', AssignedPermission::class),
             'permission_id'
         );
     }

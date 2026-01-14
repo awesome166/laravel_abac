@@ -1,6 +1,6 @@
 <?php
 
-namespace Awesome\Abac\Models;
+namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,7 +14,7 @@ class Role extends Model
     public function assignedPermissions()
     {
         return $this->morphMany(
-            config('awesome-abac.models.assigned_permission', \Awesome\Abac\Models\AssignedPermission::class),
+            config('abacpermissions.models.assigned_permission', \AbacPermissions\Models\AssignedPermission::class),
             'assignee',
             'assignee_type',
             'assignee_id'
@@ -26,7 +26,7 @@ class Role extends Model
      */
     public function permissions()
     {
-        return \Awesome\Abac\Models\Permission::whereHas('assignments', function ($query) {
+        return \AbacPermissions\Models\Permission::whereHas('assignments', function ($query) {
             $query->where('assignee_type', 'role')
                 ->where('assignee_id', $this->id);
         });

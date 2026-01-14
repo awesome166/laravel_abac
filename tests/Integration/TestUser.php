@@ -1,9 +1,9 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Awesome\Abac\Traits\HasAbac;
+use AbacPermissions\Traits\HasAbac;
 
 class TestUser extends Authenticatable
 {

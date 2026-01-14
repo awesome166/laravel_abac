@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\AssignedPermission;
-use Awesome\Abac\Facades\Abac;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Facades\AbacPermissions;
 
 class OnOffAccessTest extends TestCase
 {
@@ -61,13 +61,13 @@ class OnOffAccessTest extends TestCase
 
         // Assertions
         // User with 'on' access should have permission
-        $this->assertTrue(Abac::hasPermission($activeUser, 'view.dashboard'));
+        $this->assertTrue(AbacPermissions::hasPermission($activeUser, 'view.dashboard'));
 
         // User with 'off' access should NOT have permission
-        $this->assertFalse(Abac::hasPermission($deniedUser, 'view.dashboard'));
+        $this->assertFalse(AbacPermissions::hasPermission($deniedUser, 'view.dashboard'));
 
         // User with no access specified should have permission (defaults to 'on')
-        $this->assertTrue(Abac::hasPermission($defaultUser, 'view.dashboard'));
+        $this->assertTrue(AbacPermissions::hasPermission($defaultUser, 'view.dashboard'));
     }
 
     /** @test */
@@ -89,22 +89,22 @@ class OnOffAccessTest extends TestCase
             'access' => ['on'],
         ]);
 
-        $this->assertTrue(Abac::hasPermission($user, 'feature.beta'));
+        $this->assertTrue(AbacPermissions::hasPermission($user, 'feature.beta'));
 
         // Toggle to 'off'
         $assignment->update(['access' => ['off']]);
 
         // Clear cache by incrementing version
-        \Illuminate\Support\Facades\Cache::increment('awesome_abac_version');
+        \Illuminate\Support\Facades\Cache::increment('abacpermissions_version');
 
-        $this->assertFalse(Abac::hasPermission($user, 'feature.beta'));
+        $this->assertFalse(AbacPermissions::hasPermission($user, 'feature.beta'));
 
         // Toggle back to 'on'
         $assignment->update(['access' => ['on']]);
 
         // Clear cache again
-        \Illuminate\Support\Facades\Cache::increment('awesome_abac_version');
+        \Illuminate\Support\Facades\Cache::increment('abacpermissions_version');
 
-        $this->assertTrue(Abac::hasPermission($user, 'feature.beta'));
+        $this->assertTrue(AbacPermissions::hasPermission($user, 'feature.beta'));
     }
 }

@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\AssignedPermission;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Tenancy\TenantContext;
 
 class TenancyTest extends TestCase
 {
@@ -30,7 +30,7 @@ class TenancyTest extends TestCase
         ]);
 
         // 3. Test with Role-based tenancy
-        $roleA = \Awesome\Abac\Models\Role::create(['name' => 'Role A', 'account_id' => $accountA->id]);
+        $roleA = \AbacPermissions\Models\Role::create(['name' => 'Role A', 'account_id' => $accountA->id]);
 
         AssignedPermission::create([
             'permission_id' => $perm->id,
@@ -41,20 +41,20 @@ class TenancyTest extends TestCase
 
         $user->roles()->attach($roleA);
 
-        $roleB = \Awesome\Abac\Models\Role::create(['name' => 'Role B', 'account_id' => $accountB->id]);
+        $roleB = \AbacPermissions\Models\Role::create(['name' => 'Role B', 'account_id' => $accountB->id]);
         // Role B has no permissions
         $user->roles()->attach($roleB);
 
         // Check A
         app(TenantContext::class)->setAccount($accountA);
-        $this->assertTrue(\Awesome\Abac\Facades\Abac::hasPermission($user, 'view_dashboard'));
+        $this->assertTrue(\AbacPermissions\Facades\AbacPermissions::hasPermission($user, 'view_dashboard'));
 
         // Check B
         app(TenantContext::class)->setAccount($accountB);
-        $this->assertFalse(\Awesome\Abac\Facades\Abac::hasPermission($user, 'view_dashboard'));
+        $this->assertFalse(\AbacPermissions\Facades\AbacPermissions::hasPermission($user, 'view_dashboard'));
 
         // Check Global (No Tenant)
         app(TenantContext::class)->clear();
-        $this->assertFalse(\Awesome\Abac\Facades\Abac::hasPermission($user, 'view_dashboard'));
+        $this->assertFalse(\AbacPermissions\Facades\AbacPermissions::hasPermission($user, 'view_dashboard'));
     }
 }

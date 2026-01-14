@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up()
     {
-        $tables = config('awesome-abac.tables');
+        $tables = config('abacpermissions.tables');
 
         // Drop old pivot tables
         Schema::dropIfExists('permission_user');
@@ -58,7 +58,7 @@ return new class extends Migration
 
     public function down()
     {
-        $tables = config('awesome-abac.tables');
+        $tables = config('abacpermissions.tables');
 
         // Drop new table
         Schema::dropIfExists($tables['assigned_permissions']);

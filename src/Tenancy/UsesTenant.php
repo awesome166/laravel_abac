@@ -1,9 +1,9 @@
 <?php
 
-namespace Awesome\Abac\Tenancy;
+namespace AbacPermissions\Tenancy;
 
-use Awesome\Abac\Tenancy\TenantContext;
-use Awesome\Abac\Tenancy\TenantScope;
+use AbacPermissions\Tenancy\TenantContext;
+use AbacPermissions\Tenancy\TenantScope;
 use Illuminate\Support\Facades\App;
 
 trait UsesTenant
@@ -24,7 +24,7 @@ trait UsesTenant
 
     public function account()
     {
-        return $this->belongsTo(config('awesome-abac.models.account'), 'account_id');
+        return $this->belongsTo(config('abacpermissions.models.account'), 'account_id');
     }
 
     public function scopeWithoutTenant($query)

@@ -1,14 +1,14 @@
 <?php
 
-namespace Awesome\Abac\Controllers;
+namespace AbacPermissions\Controllers;
 
-use Awesome\Abac\Facades\Abac;
+use AbacPermissions\Facades\AbacPermissions;
 
 trait AbacControllerHelper
 {
     public function authorizePermission(string $permission)
     {
-        if (!Abac::hasPermission(auth()->user(), $permission)) {
+        if (!AbacPermissions::hasPermission(auth()->user(), $permission)) {
             abort(403, "Unauthorized: Missing permission '$permission'");
         }
     }
@@ -17,7 +17,7 @@ trait AbacControllerHelper
     {
         // Wrapper for adding role
         $user->roles()->attach($role);
-        Abac::flushCache($user);
+        AbacPermissions::flushCache($user);
     }
 
     // ==================== PERMISSION CRUD ====================
@@ -27,7 +27,7 @@ trait AbacControllerHelper
      */
     public function createPermission(array $data)
     {
-        $permission = \Awesome\Abac\Models\Permission::create([
+        $permission = \AbacPermissions\Models\Permission::create([
             'name' => $data['name'],
             'type' => $data['type'] ?? 'on', // 'on' or 'crud'
             'description' => $data['description'] ?? null,
@@ -43,7 +43,7 @@ trait AbacControllerHelper
      */
     public function updatePermission($permissionId, array $data)
     {
-        $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+        $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
         $permission->update($data);
 
         $this->recachePermissionsList();
@@ -57,7 +57,7 @@ trait AbacControllerHelper
      */
     public function deletePermission($permissionId)
     {
-        $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+        $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
 
         // Detach from all roles and users
         $permission->roles()->detach();
@@ -73,7 +73,7 @@ trait AbacControllerHelper
      */
     public function getPermission($permissionId)
     {
-        return \Awesome\Abac\Models\Permission::with(['roles'])->findOrFail($permissionId);
+        return \AbacPermissions\Models\Permission::with(['roles'])->findOrFail($permissionId);
     }
 
     // ==================== ROLE CRUD ====================
@@ -83,7 +83,7 @@ trait AbacControllerHelper
      */
     public function createRole(array $data)
     {
-        $role = \Awesome\Abac\Models\Role::create([
+        $role = \AbacPermissions\Models\Role::create([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
             'zeus_level' => $data['zeus_level'] ?? null, // null, 'system', or 'tenant'
@@ -98,7 +98,7 @@ trait AbacControllerHelper
      */
     public function updateRole($roleId, array $data)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
         $role->update($data);
 
         $this->flushAffectedUsersForRole($role);
@@ -111,7 +111,7 @@ trait AbacControllerHelper
      */
     public function deleteRole($roleId)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
 
         // Detach from all users and permissions
         $role->permissions()->detach();
@@ -125,7 +125,7 @@ trait AbacControllerHelper
      */
     public function getRole($roleId)
     {
-        return \Awesome\Abac\Models\Role::with(['permissions'])->findOrFail($roleId);
+        return \AbacPermissions\Models\Role::with(['permissions'])->findOrFail($roleId);
     }
 
     // ==================== ATTACH PERMISSIONS TO ROLES ====================
@@ -135,11 +135,11 @@ trait AbacControllerHelper
      */
     public function attachPermissionToRole($roleId, $permissionId, array $access = null)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
-        $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
+        $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
 
         // Create or update assignment
-        \Awesome\Abac\Models\AssignedPermission::updateOrCreate(
+        \AbacPermissions\Models\AssignedPermission::updateOrCreate(
             [
                 'permission_id' => $permissionId,
                 'assignee_id' => $roleId,
@@ -161,15 +161,15 @@ trait AbacControllerHelper
      */
     public function attachPermissionsToRole($roleId, array $permissions)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
 
         foreach ($permissions as $permissionData) {
             $permissionId = is_array($permissionData) ? $permissionData['id'] : $permissionData;
             $access = is_array($permissionData) ? ($permissionData['access'] ?? null) : null;
 
-            $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+            $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
 
-            \Awesome\Abac\Models\AssignedPermission::updateOrCreate(
+            \AbacPermissions\Models\AssignedPermission::updateOrCreate(
                 [
                     'permission_id' => $permissionId,
                     'assignee_id' => $roleId,
@@ -192,9 +192,9 @@ trait AbacControllerHelper
      */
     public function detachPermissionFromRole($roleId, $permissionId)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
 
-        \Awesome\Abac\Models\AssignedPermission::where('permission_id', $permissionId)
+        \AbacPermissions\Models\AssignedPermission::where('permission_id', $permissionId)
             ->where('assignee_id', $roleId)
             ->where('assignee_type', 'role')
             ->delete();
@@ -209,9 +209,9 @@ trait AbacControllerHelper
      */
     public function detachAllPermissionsFromRole($roleId)
     {
-        $role = \Awesome\Abac\Models\Role::findOrFail($roleId);
+        $role = \AbacPermissions\Models\Role::findOrFail($roleId);
 
-        \Awesome\Abac\Models\AssignedPermission::where('assignee_id', $roleId)
+        \AbacPermissions\Models\AssignedPermission::where('assignee_id', $roleId)
             ->where('assignee_type', 'role')
             ->delete();
 
@@ -227,9 +227,9 @@ trait AbacControllerHelper
      */
     public function attachPermissionToUser($user, $permissionId, $accountId = null, array $access = null)
     {
-        $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+        $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
 
-        \Awesome\Abac\Models\AssignedPermission::updateOrCreate(
+        \AbacPermissions\Models\AssignedPermission::updateOrCreate(
             [
                 'permission_id' => $permissionId,
                 'assignee_id' => $user->id,
@@ -241,7 +241,7 @@ trait AbacControllerHelper
             ]
         );
 
-        Abac::flushCache($user, $accountId);
+        AbacPermissions::flushCache($user, $accountId);
 
         return true;
     }
@@ -255,9 +255,9 @@ trait AbacControllerHelper
             $permissionId = is_array($permissionData) ? $permissionData['id'] : $permissionData;
             $access = is_array($permissionData) ? ($permissionData['access'] ?? null) : null;
 
-            $permission = \Awesome\Abac\Models\Permission::findOrFail($permissionId);
+            $permission = \AbacPermissions\Models\Permission::findOrFail($permissionId);
 
-            \Awesome\Abac\Models\AssignedPermission::updateOrCreate(
+            \AbacPermissions\Models\AssignedPermission::updateOrCreate(
                 [
                     'permission_id' => $permissionId,
                     'assignee_id' => $user->id,
@@ -270,7 +270,7 @@ trait AbacControllerHelper
             );
         }
 
-        Abac::flushCache($user, $accountId);
+        AbacPermissions::flushCache($user, $accountId);
 
         return true;
     }
@@ -280,7 +280,7 @@ trait AbacControllerHelper
      */
     public function detachPermissionFromUser($user, $permissionId, $accountId = null)
     {
-        $query = \Awesome\Abac\Models\AssignedPermission::where('permission_id', $permissionId)
+        $query = \AbacPermissions\Models\AssignedPermission::where('permission_id', $permissionId)
             ->where('assignee_id', $user->id)
             ->where('assignee_type', 'user');
 
@@ -290,7 +290,7 @@ trait AbacControllerHelper
 
         $query->delete();
 
-        Abac::flushCache($user, $accountId);
+        AbacPermissions::flushCache($user, $accountId);
 
         return true;
     }
@@ -300,7 +300,7 @@ trait AbacControllerHelper
      */
     public function detachAllPermissionsFromUser($user, $accountId = null)
     {
-        $query = \Awesome\Abac\Models\AssignedPermission::where('assignee_id', $user->id)
+        $query = \AbacPermissions\Models\AssignedPermission::where('assignee_id', $user->id)
             ->where('assignee_type', 'user');
 
         if ($accountId !== null) {
@@ -309,7 +309,7 @@ trait AbacControllerHelper
 
         $query->delete();
 
-        Abac::flushCache($user, $accountId);
+        AbacPermissions::flushCache($user, $accountId);
 
         return true;
     }
@@ -322,7 +322,7 @@ trait AbacControllerHelper
     public function detachRole($user, $role)
     {
         $user->roles()->detach($role);
-        Abac::flushCache($user);
+        AbacPermissions::flushCache($user);
 
         return true;
     }
@@ -333,7 +333,7 @@ trait AbacControllerHelper
     public function syncRoles($user, array $roleIds)
     {
         $user->roles()->sync($roleIds);
-        Abac::flushCache($user);
+        AbacPermissions::flushCache($user);
 
         return true;
     }
@@ -347,8 +347,8 @@ trait AbacControllerHelper
     {
         $cacheKey = 'awesome_abac_permissions_list_' . ($accountId ?? 'global');
 
-        return \Illuminate\Support\Facades\Cache::remember($cacheKey, config('awesome-abac.cache.ttl', 3600), function () use ($accountId) {
-            $query = \Awesome\Abac\Models\Permission::query();
+        return \Illuminate\Support\Facades\Cache::remember($cacheKey, config('abacpermissions.cache.ttl', 3600), function () use ($accountId) {
+            $query = \AbacPermissions\Models\Permission::query();
 
             if ($accountId) {
                 $query->where(function ($q) use ($accountId) {
@@ -378,8 +378,8 @@ trait AbacControllerHelper
         \Illuminate\Support\Facades\Cache::forget('awesome_abac_permissions_list_global');
 
         // Also increment version to invalidate all user permission caches
-        $version = \Illuminate\Support\Facades\Cache::get('awesome_abac_version', 1);
-        \Illuminate\Support\Facades\Cache::put('awesome_abac_version', $version + 1, now()->addYear());
+        $version = \Illuminate\Support\Facades\Cache::get('abacpermissions_version', 1);
+        \Illuminate\Support\Facades\Cache::put('abacpermissions_version', $version + 1, now()->addYear());
     }
 
     /**
@@ -391,14 +391,14 @@ trait AbacControllerHelper
         $affectedUserIds = collect();
 
         // Users with direct permission
-        $directUsers = \Awesome\Abac\Models\AssignedPermission::where('permission_id', $permission->id)
+        $directUsers = \AbacPermissions\Models\AssignedPermission::where('permission_id', $permission->id)
             ->where('assignee_type', 'user')
             ->pluck('assignee_id');
 
         $affectedUserIds = $affectedUserIds->merge($directUsers);
 
         // Users with roles that have this permission
-        $roleIds = \Awesome\Abac\Models\AssignedPermission::where('permission_id', $permission->id)
+        $roleIds = \AbacPermissions\Models\AssignedPermission::where('permission_id', $permission->id)
             ->where('assignee_type', 'role')
             ->pluck('assignee_id');
 
@@ -413,7 +413,7 @@ trait AbacControllerHelper
         // Flush cache for each affected user
         $affectedUserIds->unique()->each(function ($userId) {
             $user = (object)['id' => $userId];
-            Abac::flushCache($user);
+            AbacPermissions::flushCache($user);
         });
     }
 
@@ -428,7 +428,7 @@ trait AbacControllerHelper
 
         $userIds->unique()->each(function ($userId) {
             $user = (object)['id' => $userId];
-            Abac::flushCache($user);
+            AbacPermissions::flushCache($user);
         });
     }
 }

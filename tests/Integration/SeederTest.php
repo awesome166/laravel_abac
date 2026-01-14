@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Seeders\AwesomeAbacSeeder;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Seeders\AbacPermissionsSeeder;
 use Illuminate\Support\Facades\DB;
 
 class SeederTest extends TestCase
@@ -14,7 +14,7 @@ class SeederTest extends TestCase
     /** @test */
     public function it_seeds_default_data()
     {
-        $this->seed(AwesomeAbacSeeder::class);
+        $this->seed(AbacPermissionsSeeder::class);
 
         // Check Permissions
         $this->assertTrue(Permission::where('name', 'users')->exists());

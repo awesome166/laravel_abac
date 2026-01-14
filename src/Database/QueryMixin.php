@@ -1,9 +1,10 @@
 <?php
 
-namespace Zeus\Tenancy\Database;
+namespace AbacPermissions\Database;
 
 use Illuminate\Database\Query\Builder;
-use Zeus\Tenancy\TenantManager;
+use AbacPermissions\Tenancy\TenantManager;
+use Illuminate\Support\Facades\Config;
 
 class QueryMixin
 {
@@ -22,13 +23,13 @@ class QueryMixin
                 // CAUTION: for joins, ambiguous column might be an issue.
                 // Simple version just adds where(tenant_id).
                 // Ideally, user should ensure column name is unambiguous if joining.
-                $column = config('zeus-tenancy.tenant_column', 'tenant_id');
+                $column = Config::get('abacpermissions.tenant_column', 'tenant_id');
                 return $this->where($column, $tenantId);
             }
 
             // Fallback for security: if tenant is not known, show nothing?
             // Same logic as Eloquent Scope
-             $column = config('zeus-tenancy.tenant_column', 'tenant_id');
+             $column = Config::get('abacpermissions.tenant_column', 'tenant_id');
              return $this->whereNull($column);
         };
     }

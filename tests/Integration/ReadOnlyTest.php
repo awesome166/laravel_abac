@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\AssignedPermission;
-use Awesome\Abac\Facades\Abac;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Facades\AbacPermissions;
 
 class ReadOnlyTest extends TestCase
 {
@@ -50,14 +50,14 @@ class ReadOnlyTest extends TestCase
         // 4. Assertions
 
         // Admin has everything
-        $this->assertTrue(Abac::hasPermission($admin, 'posts:create'));
-        $this->assertTrue(Abac::hasPermission($admin, 'posts:read'));
-        $this->assertTrue(Abac::hasPermission($admin, 'posts:delete'));
+        $this->assertTrue(AbacPermissions::hasPermission($admin, 'posts:create'));
+        $this->assertTrue(AbacPermissions::hasPermission($admin, 'posts:read'));
+        $this->assertTrue(AbacPermissions::hasPermission($admin, 'posts:delete'));
 
         // Viewer has ONLY read
-        $this->assertTrue(Abac::hasPermission($viewer, 'posts:read'));
+        $this->assertTrue(AbacPermissions::hasPermission($viewer, 'posts:read'));
 
-        $this->assertFalse(Abac::hasPermission($viewer, 'posts:create'));
-        $this->assertFalse(Abac::hasPermission($viewer, 'posts:delete'));
+        $this->assertFalse(AbacPermissions::hasPermission($viewer, 'posts:create'));
+        $this->assertFalse(AbacPermissions::hasPermission($viewer, 'posts:delete'));
     }
 }

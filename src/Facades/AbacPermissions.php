@@ -1,13 +1,13 @@
 <?php
 
-namespace Awesome\Abac\Facades;
+namespace AbacPermissions\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
-class Abac extends Facade
+class AbacPermissions extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return 'awesome.abac';
+        return 'abacpermissions';
     }
 }

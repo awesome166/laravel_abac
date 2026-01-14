@@ -104,6 +104,6 @@ return array(
     'Carbon\\Doctrine\\' => array($vendorDir . '/carbonphp/carbon-doctrine-types/src/Carbon/Doctrine'),
     'Carbon\\' => array($vendorDir . '/nesbot/carbon/src/Carbon'),
     'Brick\\Math\\' => array($vendorDir . '/brick/math/src'),
-    'Awesome\\Abac\\Tests\\' => array($baseDir . '/tests'),
-    'Awesome\\Abac\\' => array($baseDir . '/src'),
+    'AbacPermissions\\Tests\\' => array($baseDir . '/tests'),
+    'AbacPermissions\\' => array($baseDir . '/src'),
 );

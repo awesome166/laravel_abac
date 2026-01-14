@@ -1,19 +1,19 @@
 <?php
 
-namespace Awesome\Abac\Tests;
+namespace AbacPermissions\Tests;
 
 use Orchestra\Testbench\TestCase as Orchestra;
-use Awesome\Abac\AwesomeAbacServiceProvider;
+use AbacPermissions\AbacPermissionsServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-use Awesome\Abac\Tests\Integration\TestUser;
+use AbacPermissions\Tests\Integration\TestUser;
 
 class TestCase extends Orchestra
 {
     protected function getPackageProviders($app)
     {
         return [
-            AwesomeAbacServiceProvider::class,
+            AbacPermissionsServiceProvider::class,
         ];
     }
 
@@ -26,7 +26,7 @@ class TestCase extends Orchestra
             'prefix'   => '',
         ]);
 
-        $app['config']->set('awesome-abac.models.user', TestUser::class);
+        $app['config']->set('abacpermissions.models.user', TestUser::class);
     }
 
     protected function defineDatabaseMigrations()

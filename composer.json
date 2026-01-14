@@ -1,14 +1,23 @@
 {
-  "name": "awesome166/laravel-abac",
-  "description": "SaaS multi-tenancy and ABAC (Attribute-Based Access Control) system for Laravel",
-  "keywords": ["laravel", "abac", "access-control", "permissions", "multi-tenancy", "saas"],
+  "name": "abacpermissions/abacpermissions",
+  "description": "SaaS multi-tenancy and RBAC/ABAC (Attribute-Based Access Control) system for Laravel",
+  "keywords": [
+    "laravel",
+    "abac",
+    "rbac",
+    "access-control",
+    "permissions",
+    "multi-tenancy",
+    "saas"
+  ],
   "type": "library",
   "license": "MIT",
-  "authors": [{
-    "name": "awesome166",
-    "email": "joeymantey@gmail.com",
-    "homepage": "https://github.com/awesome166"
-  }],
+  "authors": [
+    {
+      "name": "Joey Mantey",
+      "email": "joeymantey@gmail.com"
+    }
+  ],
   "require": {
     "php": "^8.2",
     "illuminate/support": "^9.0|^10.0|^11.0",
@@ -27,24 +36,21 @@
   },
   "autoload": {
     "psr-4": {
-      "Awesome166\\LaravelAbac\\": "src/"
-    },
-    "files": [
-      "src/helpers.php"
-    ]
+      "AbacPermissions\\": "src/"
+    }
   },
   "autoload-dev": {
     "psr-4": {
-      "Awesome166\\LaravelAbac\\Tests\\": "tests/"
+      "AbacPermissions\\Tests\\": "tests/"
     }
   },
   "extra": {
     "laravel": {
       "providers": [
-        "Awesome166\\LaravelAbac\\LaravelAbacServiceProvider"
+        "AbacPermissions\\AbacPermissionsServiceProvider"
       ],
       "aliases": {
-        "Abac": "Awesome166\\LaravelAbac\\Facades\\Abac"
+        "AbacPermissions": "AbacPermissions\\Facades\\AbacPermissions"
       }
     }
   },

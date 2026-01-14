@@ -1,11 +1,11 @@
 <?php
 
-namespace Awesome\Abac\AccessControl;
+namespace AbacPermissions\AccessControl;
 
 use Illuminate\Support\Facades\Cache;
-use Awesome\Abac\Tenancy\TenantContext;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Permission;
+use AbacPermissions\Tenancy\TenantContext;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Permission;
 
 class AbacEngine
 {
@@ -27,10 +27,10 @@ class AbacEngine
         if (!$user) return [];
 
         $accountId = $this->config->getAccountId();
-        $version = Cache::get('awesome_abac_version', 1);
-        $cacheKey = "awesome_abac_{$version}_perms_{$user->id}_" . ($accountId ?? 'global');
+        $version = Cache::get('abacpermissions_version', 1);
+        $cacheKey = "abacpermissions_{$version}_perms_{$user->id}_" . ($accountId ?? 'global');
 
-        $permissions = Cache::remember($cacheKey, config('awesome-abac.cache.ttl', 3600), function () use ($user, $accountId) {
+        $permissions = Cache::remember($cacheKey, config('abacpermissions.cache.ttl', 3600), function () use ($user, $accountId) {
              return $this->resolvePermissions($user, $accountId);
         });
 
@@ -40,7 +40,7 @@ class AbacEngine
             $permissions = $this->resolvePermissions($user, $accountId);
 
             if (!empty($permissions)) {
-                Cache::put($cacheKey, $permissions, config('awesome-abac.cache.ttl', 3600));
+                Cache::put($cacheKey, $permissions, config('abacpermissions.cache.ttl', 3600));
             }
         }
 
@@ -76,10 +76,10 @@ class AbacEngine
         // Or better: Use Cache Tags if available: ['abac_user_{id}'].
 
         if (Cache::supportsTags()) {
-            Cache::tags(["abac_user_{$user->id}"])->flush();
+            Cache::tags(["abacpermissions_user_{$user->id}"])->flush();
         } else {
              // Fallback: Clear current context
-             $key = "awesome_abac_perms_{$user->id}_" . ($accountId ?? 'global');
+             $key = "abacpermissions_perms_{$user->id}_" . ($accountId ?? 'global');
              Cache::forget($key);
         }
     }
@@ -112,7 +112,7 @@ class AbacEngine
         $roleIds = $applicableRoles->pluck('id')->toArray();
 
         if (!empty($roleIds)) {
-            $roleAssignments = \Awesome\Abac\Models\AssignedPermission::query()
+            $roleAssignments = \AbacPermissions\Models\AssignedPermission::query()
                 ->where('assignee_type', 'role')
                 ->whereIn('assignee_id', $roleIds)
                 ->with('permission')
@@ -124,7 +124,7 @@ class AbacEngine
         }
 
         // 4. Collect Direct User Permissions via AssignedPermission
-        $userAssignments = \Awesome\Abac\Models\AssignedPermission::query()
+        $userAssignments = \AbacPermissions\Models\AssignedPermission::query()
             ->where('assignee_type', 'user')
             ->where('assignee_id', $user->id)
             ->forAccount($accountId)

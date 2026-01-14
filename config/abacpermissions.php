@@ -39,7 +39,7 @@ return [
     |
     */
     'cache' => [
-        'key_prefix' => 'awesome_abac_',
+        'key_prefix' => 'abacpermissions_',
         'ttl' => 60 * 60, // 1 hour
     ],
 
@@ -53,10 +53,10 @@ return [
     */
     'models' => [
         'user' => \App\Models\User::class, // Defaults to App\Models\User
-        'account' => \Awesome\Abac\Models\Account::class,
-        'role' => \Awesome\Abac\Models\Role::class,
-        'permission' => \Awesome\Abac\Models\Permission::class,
-        'assigned_permission' => \Awesome\Abac\Models\AssignedPermission::class,
-        'activity_log' => \Awesome\Abac\Models\ActivityLog::class,
+        'account' => \AbacPermissions\Models\Account::class,
+        'role' => \AbacPermissions\Models\Role::class,
+        'permission' => \AbacPermissions\Models\Permission::class,
+        'assigned_permission' => \AbacPermissions\Models\AssignedPermission::class,
+        'activity_log' => \AbacPermissions\Models\ActivityLog::class,
     ],
 ];

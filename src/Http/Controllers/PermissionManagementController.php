@@ -1,13 +1,13 @@
 <?php
 
-namespace Awesome\Abac\Http\Controllers;
+namespace AbacPermissions\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Tests\Integration\TestUser; // Fallback for test env?
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Tests\Integration\TestUser; // Fallback for test env?
 // In Real app, User model is configurable.
 use Illuminate\Support\Facades\Config;
 
@@ -89,7 +89,7 @@ class PermissionManagementController extends Controller
         $input = $request->input('permissions', []);
 
         // Delete existing assignments for this subject
-        \Awesome\Abac\Models\AssignedPermission::where('assignee_id', $id)
+        \AbacPermissions\Models\AssignedPermission::where('assignee_id', $id)
             ->where('assignee_type', $type)
             ->delete();
 
@@ -98,7 +98,7 @@ class PermissionManagementController extends Controller
             $permId = $item['id'];
             $access = $item['access'] ?? null;
 
-            \Awesome\Abac\Models\AssignedPermission::create([
+            \AbacPermissions\Models\AssignedPermission::create([
                 'permission_id' => $permId,
                 'assignee_id' => $id,
                 'assignee_type' => $type,
@@ -109,7 +109,7 @@ class PermissionManagementController extends Controller
 
         // Flush cache for affected users
         if ($type === 'user') {
-            \Awesome\Abac\Facades\Abac::flushCache($subject);
+            \AbacPermissions\Facades\AbacPermissions::flushCache($subject);
         } else if ($type === 'role') {
             // Flush cache for all users with this role
             $userIds = \Illuminate\Support\Facades\DB::table('role_user')
@@ -118,7 +118,7 @@ class PermissionManagementController extends Controller
 
             $userIds->each(function ($userId) {
                 $user = (object)['id' => $userId];
-                \Awesome\Abac\Facades\Abac::flushCache($user);
+                \AbacPermissions\Facades\AbacPermissions::flushCache($user);
             });
         }
 
@@ -131,7 +131,7 @@ class PermissionManagementController extends Controller
             return Role::findOrFail($id);
         }
         if ($type === 'user') {
-            $model = Config::get('awesome-abac.models.user', 'App\\Models\\User');
+            $model = Config::get('abacpermissions.models.user', 'App\\Models\\User');
             return $model::findOrFail($id);
         }
         abort(404);

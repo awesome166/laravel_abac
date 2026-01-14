@@ -1,16 +1,16 @@
 <?php
 
-namespace Awesome\Abac\Seeders;
+namespace AbacPermissions\Seeders;
 
 use Illuminate\Database\Seeder;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Models\Role;
-use Awesome\Abac\Models\Permission;
-use Awesome\Abac\Models\AssignedPermission;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Models\Role;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\AssignedPermission;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
-class AwesomeAbacSeeder extends Seeder
+class AbacPermissionsSeeder extends Seeder
 {
     public function run()
     {
@@ -110,7 +110,7 @@ class AwesomeAbacSeeder extends Seeder
                 'account_id' => null,
             ], [
                 'access' => $permData['access'],
-            ]);
+                ]);
         }
 
         // Tenant Editor - Can create and update users
@@ -156,7 +156,7 @@ class AwesomeAbacSeeder extends Seeder
         }
 
         // 7. Create Users (Using Configured User Model)
-        $userClass = config('awesome-abac.models.user', 'App\\Models\\User');
+        $userClass = config('abacpermissions.models.user', 'App\\Models\\User');
 
         if (class_exists($userClass)) {
             // System Admin
@@ -209,7 +209,7 @@ class AwesomeAbacSeeder extends Seeder
                 'access' => ['read'],
             ]);
 
-            echo "✓ Seeded AwesomeAbac package with:\n";
+            echo "✓ Seeded AbacPermissions package with:\n";
             echo "  - " . count($resources) . " CRUD permissions\n";
             echo "  - " . count($actionPermissions) . " action permissions\n";
             echo "  - 4 roles (System Zeus, Tenant Owner, Manager, Editor, Viewer)\n";

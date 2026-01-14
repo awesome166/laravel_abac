@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up()
     {
-        $tables = config('awesome-abac.tables');
+        $tables = config('abacpermissions.tables');
 
         // 1. Accounts (Tenants)
         Schema::create($tables['accounts'], function (Blueprint $table) {
@@ -103,7 +103,7 @@ return new class extends Migration
 
     public function down()
     {
-        $tables = config('awesome-abac.tables');
+        $tables = config('abacpermissions.tables');
         Schema::dropIfExists($tables['activity_logs']);
         Schema::dropIfExists('permission_user');
         Schema::dropIfExists('role_user');

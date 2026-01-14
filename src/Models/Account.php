@@ -1,6 +1,6 @@
 <?php
 
-namespace Awesome\Abac\Models;
+namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,14 +14,14 @@ class Account extends Model
 
     public function getUsersTable()
     {
-        return config('awesome-abac.tables.accounts', 'accounts');
+        return config('abacpermissions.tables.accounts', 'accounts');
     }
 
     public function users()
     {
         return $this->belongsToMany(
-            config('awesome-abac.models.user'),
-            config('awesome-abac.tables.account_user', 'account_user'),
+            config('abacpermissions.models.user'),
+            config('abacpermissions.tables.account_user', 'account_user'),
             'account_id',
             'user_id'
         );

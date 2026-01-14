@@ -210,8 +210,8 @@ class ComposerStaticInit394e4e59da8d23983e75c623ecf209a9
         ),
         'A' =>
         array (
-            'Awesome\\Abac\\Tests\\' => 19,
-            'Awesome\\Abac\\' => 13,
+            'AbacPermissions\\Tests\\' => 22,
+            'AbacPermissions\\' => 16,
         ),
     );
 
@@ -615,11 +615,11 @@ class ComposerStaticInit394e4e59da8d23983e75c623ecf209a9
         array (
             0 => __DIR__ . '/..' . '/brick/math/src',
         ),
-        'Awesome\\Abac\\Tests\\' =>
+        'AbacPermissions\\Tests\\' =>
         array (
             0 => __DIR__ . '/../..' . '/tests',
         ),
-        'Awesome\\Abac\\' =>
+        'AbacPermissions\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),

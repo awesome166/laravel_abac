@@ -1,12 +1,12 @@
 <?php
 
-namespace Awesome\Abac\Tests\Integration;
+namespace AbacPermissions\Tests\Integration;
 
-use Awesome\Abac\Tests\TestCase;
-use Awesome\Abac\Models\ActivityLog;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Logging\ActivityLogger;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Tests\TestCase;
+use AbacPermissions\Models\ActivityLog;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Logging\ActivityLogger;
+use AbacPermissions\Tenancy\TenantContext;
 
 class ActivityLoggerTest extends TestCase
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Awesome\Abac\Http\Middleware;
+namespace AbacPermissions\Http\Middleware;
 
 use Closure;
-use Awesome\Abac\Facades\Abac;
+use AbacPermissions\Facades\AbacPermissions;
 use Illuminate\Http\JsonResponse;
 
 class AppendPermissions
@@ -14,7 +14,7 @@ class AppendPermissions
 
         if ($response instanceof JsonResponse && auth()->check()) {
             $data = $response->getData(true);
-            $permissions = Abac::getPermissions(auth()->user());
+            $permissions = AbacPermissions::getPermissions(auth()->user());
 
             // Append to meta or root?
             // "Appended to every response automatically"

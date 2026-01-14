@@ -1,6 +1,6 @@
 <?php
 
-namespace Awesome\Abac\Models;
+namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -19,7 +19,7 @@ class AssignedPermission extends Model
      */
     public function getTable()
     {
-        return config('awesome-abac.tables.assigned_permissions', 'assigned_permissions');
+        return config('abacpermissions.tables.assigned_permissions', 'assigned_permissions');
     }
 
     /**
@@ -36,7 +36,7 @@ class AssignedPermission extends Model
     public function permission(): BelongsTo
     {
         return $this->belongsTo(
-            config('awesome-abac.models.permission', Permission::class),
+            config('abacpermissions.models.permission', Permission::class),
             'permission_id'
         );
     }
@@ -47,7 +47,7 @@ class AssignedPermission extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(
-            config('awesome-abac.models.account', Account::class),
+            config('abacpermissions.models.account', Account::class),
             'account_id'
         );
     }
@@ -88,11 +88,11 @@ class AssignedPermission extends Model
      */
     protected function getAssigneeType($assignee): string
     {
-        if ($assignee instanceof \Awesome\Abac\Models\Role) {
+        if ($assignee instanceof \AbacPermissions\Models\Role) {
             return 'role';
         }
 
-        if (is_a($assignee, config('awesome-abac.models.user'))) {
+        if (is_a($assignee, config('abacpermissions.models.user'))) {
             return 'user';
         }
 

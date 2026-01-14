@@ -1,21 +1,21 @@
 <?php
 
-namespace Awesome\Abac\Http\Middleware;
+namespace AbacPermissions\Http\Middleware;
 
 use Closure;
-use Awesome\Abac\Models\Account;
-use Awesome\Abac\Tenancy\TenantContext;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Tenancy\TenantContext;
 
 class DetectAbacTenant
 {
     public function handle($request, Closure $next)
     {
-        if (!config('awesome-abac.tenancy_enabled')) {
+        if (!config('abacpermissions.tenancy_enabled')) {
             return $next($request);
         }
 
         // Simplistic detection: header or subdomain.
-        // For AwesomeAbac, let's look for 'X-Tenant-ID' or 'X-Account-Slug'.
+        // For AbacPermissions, let's look for 'X-Tenant-ID' or 'X-Account-Slug'.
 
         $slug = $request->header('X-Account-Slug');
 

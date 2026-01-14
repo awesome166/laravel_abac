@@ -1,6 +1,6 @@
 <?php
 
-namespace Awesome\Abac\Models;
+namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
