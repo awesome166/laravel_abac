@@ -15,11 +15,14 @@ class AssignedPermission extends Model
     ];
 
     /**
-     * Get the table name from config
+     * Table name for Eloquent
      */
-    public function getTable()
+    protected $table;
+
+    public function __construct(array $attributes = [])
     {
-        return config('abacpermissions.tables.assigned_permissions', 'assigned_permissions');
+        $this->table = config('abacpermissions.tables.assigned_permissions', 'assigned_permissions');
+        parent::__construct($attributes);
     }
 
     /**
