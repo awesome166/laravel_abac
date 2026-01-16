@@ -37,6 +37,62 @@ Config allows toggling tenancy (`tenancy_enabled`) and customizing table names.
 
 ## Usage
 
+### Middleware: DetectAbacTenant
+
+The `DetectAbacTenant` middleware automatically detects the current tenant for each request when multi-tenancy is enabled.
+
+**How it works:**
+- Checks if tenancy is enabled via `config('abacpermissions.tenancy_enabled')`.
+- Looks for the `X-Account-Slug` header in the request.
+- If present, finds the corresponding `Account` by slug and sets it in the `TenantContext`.
+
+**Code Example:**
+```php
+namespace AbacPermissions\Http\Middleware;
+
+use Closure;
+use AbacPermissions\Models\Account;
+use AbacPermissions\Tenancy\TenantContext;
+
+class DetectAbacTenant
+{
+    public function handle($request, Closure $next)
+    {
+        if (!config('abacpermissions.tenancy_enabled')) {
+            return $next($request);
+        }
+
+        $slug = $request->header('X-Account-Slug');
+
+        if ($slug) {
+            $account = Account::where('slug', $slug)->first();
+            if ($account) {
+                app(TenantContext::class)->setAccount($account);
+            }
+        }
+
+        return $next($request);
+    }
+}
+```
+
+**Usage:**
+
+Register the middleware in your `app/Http/Kernel.php`:
+```php
+protected $middlewareGroups = [
+    'web' => [
+        // ...existing middleware...
+        \AbacPermissions\Http\Middleware\DetectAbacTenant::class,
+    ],
+];
+```
+
+Send the `X-Account-Slug` header with each request to identify the tenant:
+```
+X-Account-Slug: your-tenant-slug
+```
+
 ### 1. Setup Models
 
 Add `HasAbac` trait to your User model:
@@ -113,7 +169,35 @@ Role::create(['name' => 'Super Admin', 'zeus_level' => 'system']); // Global Byp
 Role::create(['name' => 'Owner', 'zeus_level' => 'tenant', 'account_id' => 1]); // Tenant Bypass
 ```
 
+
 ### 3. Check Permissions
+
+#### Get User Permissions (from Cache)
+
+To retrieve all effective permissions for a user (with caching and auto-recache):
+
+```php
+$permissions = AbacPermissions::getPermissions($user);
+// Returns an array of permission strings, e.g. ['posts:create', 'posts:read', ...]
+```
+
+**How it works:**
+- Permissions are cached per user and account context for performance.
+- Cache is automatically invalidated when permissions or roles change.
+- If the cache is empty, it will auto-recache on the next call.
+
+**Example:**
+```php
+// Get permissions for the current user
+$permissions = AbacPermissions::getPermissions(auth()->user());
+
+// Check for a specific permission
+if (in_array('posts:create', $permissions)) {
+    // User can create posts
+}
+```
+
+#### Check a Specific Permission
 
 Via Facade:
 ```php
@@ -125,7 +209,7 @@ In Controller:
 $this->authorizePermission('posts:create');
 ```
 
-response JSON automatically includes effective permissions in `_permissions` if middleware is enabled.
+Response JSON automatically includes effective permissions in `_permissions` if middleware is enabled.
 
 ### 4. Tenancy
 
