@@ -125,6 +125,46 @@ class PermissionManagementController extends Controller
         return response()->json(['status' => 'synced']);
     }
 
+    /**
+     * Get accessible accounts for the current user.
+     * Used for frontend account selection.
+     */
+    public function userAccounts(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([]);
+        }
+
+        // Check for System Level Zeus
+        $isSystemZeus = $user->roles->contains(function($role) {
+            return $role->zeus_level === 'system';
+        });
+
+        if ($isSystemZeus) {
+            // Zeus sees all accounts
+            return Account::all();
+        }
+
+        // Regular users: Get accounts where they have a role or direct permission
+        // 1. Accounts via Roles
+        $roleAccountIds = $user->roles->pluck('account_id')->filter();
+
+        // 2. Accounts via Direct Permissions (AssignedPermission where account_id is set)
+        // We need to query AssignedPermission table directly or via relationship if it exists on User
+        // User hasMany AssignedPermission
+        $directAccountIds = \AbacPermissions\Models\AssignedPermission::query()
+            ->where('assignee_type', 'user')
+            ->where('assignee_id', $user->id)
+            ->whereNotNull('account_id')
+            ->pluck('account_id');
+
+        $allAccountIds = $roleAccountIds->merge($directAccountIds)->unique();
+
+        return Account::whereIn('id', $allAccountIds)->get();
+    }
+
     protected function resolveSubject($type, $id)
     {
         if ($type === 'role') {

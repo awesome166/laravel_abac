@@ -43,36 +43,22 @@ The `DetectAbacTenant` middleware automatically detects the current tenant for e
 
 **How it works:**
 - Checks if tenancy is enabled via `config('abacpermissions.tenancy_enabled')`.
-- Looks for the `X-Account-Slug` header in the request.
-- If present, finds the corresponding `Account` by slug and sets it in the `TenantContext`.
+- Looks for the `X-Account-ID` (or `X-Account-Slug`) header in the request.
+- If present, finds the corresponding `Account` and sets it in the `TenantContext`.
+- **System Zeus Bypass**: If no account header is provided and the user is System Zeus, they are allowed to proceed without an account context and will see ALL data from ALL tenants.
+- **Regular Users**: Without an account header, regular users are restricted to global resources only (`account_id IS NULL`).
 
-**Code Example:**
+**Code Overview:**
+The middleware now checks if the authenticated user is System Zeus and allows them to bypass the tenant requirement:
+
 ```php
-namespace AbacPermissions\Http\Middleware;
-
-use Closure;
-use AbacPermissions\Models\Account;
-use AbacPermissions\Tenancy\TenantContext;
-
-class DetectAbacTenant
-{
-    public function handle($request, Closure $next)
-    {
-        if (!config('abacpermissions.tenancy_enabled')) {
-            return $next($request);
-        }
-
-        $slug = $request->header('X-Account-Slug');
-
-        if ($slug) {
-            $account = Account::where('slug', $slug)->first();
-            if ($account) {
-                app(TenantContext::class)->setAccount($account);
-            }
-        }
-
-        return $next($request);
+// If no account context provided
+if (!$account) {
+    // System Zeus can proceed without account context
+    if ($user && method_exists($user, 'isSystemZeus') && $user->isSystemZeus()) {
+        return $next($request); // Access all data
     }
+    // Regular users restricted to global resources
 }
 ```
 
@@ -88,9 +74,9 @@ protected $middlewareGroups = [
 ];
 ```
 
-Send the `X-Account-Slug` header with each request to identify the tenant:
+Send the `X-Account-ID` (preferred) or `X-Account-Slug` header with each request to identify the tenant:
 ```
-X-Account-Slug: your-tenant-slug
+X-Account-ID: 1
 ```
 
 ### 1. Setup Models
@@ -159,7 +145,7 @@ AssignedPermission::create([
     'assignee_id' => $user->id,
     'assignee_type' => 'user',
     'access' => ['off'], // Permission denied
-]);
+])
 // Default (no access specified) = 'on' (granted)
 ```
 
@@ -167,6 +153,117 @@ Zeus Roles:
 ```php
 Role::create(['name' => 'Super Admin', 'zeus_level' => 'system']); // Global Bypass
 Role::create(['name' => 'Owner', 'zeus_level' => 'tenant', 'account_id' => 1]); // Tenant Bypass
+```
+
+#### Understanding Zeus Roles
+
+Zeus roles provide powerful override capabilities for privileged users. There are two levels:
+
+**System Zeus** (`zeus_level='system'`)
+- Bypasses **ALL** permission checks globally
+- Bypasses **ALL** tenant restrictions across the entire system
+- Can access data from **ALL** tenants without setting an account context
+- Does **NOT** require `X-Account-ID` header (optional for scoping)
+- Intended for platform administrators and system maintenance
+
+**Tenant Zeus** (`zeus_level='tenant'`)
+- Bypasses **ALL** permission checks within their assigned tenant
+- Must have an `account_id` assigned to the role
+- Can only access data within their designated tenant
+- **STILL** requires `X-Account-ID` header to set tenant context
+- Intended for account owners or tenant administrators
+
+**How Zeus Affects Query Scoping:**
+
+When you query a tenant-aware model (using `UsesTenant` trait):
+
+| User Type | Account Context | Data Returned |
+|-----------|----------------|---------------|
+| System Zeus | Not set | **ALL** data from **ALL** tenants |
+| System Zeus | Set (via header) | Data scoped to that tenant only |
+| Tenant Zeus | Not set | Only global data (`account_id IS NULL`) |
+| Tenant Zeus | Set (their tenant) | **ALL** data within their tenant |
+| Regular User | Not set | Only global data (`account_id IS NULL`) |
+| Regular User | Set | Data scoped to that tenant only |
+
+**Zeus Helper Methods:**
+
+The `HasAbac` trait provides convenient methods to check Zeus status:
+
+```php
+// Check if user is System Zeus
+if ($user->isSystemZeus()) {
+    // User has global override
+}
+
+// Check if user is Tenant Zeus for current or specific account
+if ($user->isTenantZeus()) {
+    // Uses current tenant context
+}
+
+if ($user->isTenantZeus($accountId)) {
+    // Check for specific account
+}
+
+// Check if user has any Zeus level
+if ($user->isZeus()) {
+    // System or Tenant Zeus
+}
+```
+
+**Performance Note:**
+Zeus status checks are cached at the request level to avoid N+1 query issues. The first check performs a database query, subsequent calls return the cached result.
+
+**Best Practices:**
+
+1. **Limit System Zeus Assignments**: System Zeus is extremely powerful. Only assign to trusted platform administrators.
+
+2. **Use Tenant Zeus for Account Owners**: Most SaaS applications should use Tenant Zeus for account owners rather than System Zeus.
+
+3. **Audit Zeus Actions**: Consider logging when Zeus users perform sensitive operations.
+
+4. **Zeus Cannot Be Overridden**: Once a user has a Zeus role, they bypass all permission checks. Removing permissions from their role has no effect. To revoke access, you must remove the Zeus role entirely.
+
+5. **Optional Account Scoping for System Zeus**: System Zeus users can optionally send `X-Account-ID` header to scope their view to a specific tenant for testing or focused work.
+
+**Example: Creating a Platform Admin (System Zeus)**
+
+```php
+// Create System Zeus role (no account_id)
+$systemZeus = Role::create([
+    'name' => 'Platform Administrator',
+    'zeus_level' => 'system',
+    'description' => 'Full platform access'
+]);
+
+// Assign to user
+$admin = User::find($userId);
+$admin->roles()->attach($systemZeus->id);
+
+// This user can now:
+// - Access all tenants without setting X-Account-ID
+// - Bypass all permission checks
+// - View/modify data across entire platform
+```
+
+**Example: Creating an Account Owner (Tenant Zeus)**
+
+```php
+// Create Tenant Zeus role for specific account
+$tenantZeus = Role::create([
+    'name' => 'Account Owner',
+    'zeus_level' => 'tenant',
+    'account_id' => $accountId,
+    'description' => 'Full access within this account'
+]);
+
+// Assign to account owner
+$owner = User::find($ownerId);
+$owner->roles()->attach($tenantZeus->id);
+
+// This user must set X-Account-ID header
+// When set to their account, they bypass all permission checks
+// Cannot access other accounts' data
 ```
 
 
@@ -449,6 +546,18 @@ User permission caches are automatically flushed when:
 - Permissions are attached/detached from roles
 - Roles are assigned/removed from users
 - Permissions or roles are updated/deleted
+
+#### Account Selection Helper
+
+**Get User Accounts:**
+The controller includes a helper to fetch accounts the current user has access to. This is ideal for building frontend account switchers.
+- **System Zeus**: Returns ALL accounts.
+- **Regular Users**: Returns accounts where they have an assigned role or direct permission.
+
+```php
+// GET /api/abac/user-accounts (assuming you routed this method)
+$accounts = $this->userAccounts($request);
+```
 
 #### Complete Example
 

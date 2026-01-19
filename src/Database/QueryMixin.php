@@ -21,15 +21,15 @@ class QueryMixin
             if ($tenantId) {
                 // Assuming the table is already set and we just append where
                 // CAUTION: for joins, ambiguous column might be an issue.
-                // Simple version just adds where(tenant_id).
+                // Simple version just adds where(account_id).
                 // Ideally, user should ensure column name is unambiguous if joining.
-                $column = Config::get('abacpermissions.tenant_column', 'tenant_id');
+                $column = Config::get('abacpermissions.tenant_column', 'account_id');
                 return $this->where($column, $tenantId);
             }
 
             // Fallback for security: if tenant is not known, show nothing?
             // Same logic as Eloquent Scope
-             $column = Config::get('abacpermissions.tenant_column', 'tenant_id');
+             $column = Config::get('abacpermissions.tenant_column', 'account_id');
              return $this->whereNull($column);
         };
     }

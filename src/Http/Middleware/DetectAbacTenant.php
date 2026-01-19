@@ -14,16 +14,35 @@ class DetectAbacTenant
             return $next($request);
         }
 
-        // Simplistic detection: header or subdomain.
-        // For AbacPermissions, let's look for 'X-Tenant-ID' or 'X-Account-Slug'.
+        $user = auth()->user();
 
-        $slug = $request->header('X-Account-ID') ?? $request->header('X-Account-Slug');
+        // Check for explicit account context via headers
+        $accountId = $request->header('X-Account-ID');
+        $slug = $request->header('X-Account-Slug');
 
-        if ($slug) {
-            $account = Account::where('id', $slug)->orWhere('slug', $slug)->first();
-            if ($account) {
-                app(TenantContext::class)->setAccount($account);
+        $account = null;
+
+        if ($accountId) {
+            $account = Account::find($accountId);
+        } elseif ($slug) {
+            $account = Account::where('slug', $slug)->first();
+        }
+
+        // Set account context if found
+        if ($account) {
+            app(TenantContext::class)->setAccount($account);
+        } else {
+            // No explicit account header provided
+            // Check if user is System Zeus - they can proceed without account context
+            // System Zeus has access to all data across all tenants
+            if ($user && method_exists($user, 'isSystemZeus') && $user->isSystemZeus()) {
+                // Allow System Zeus to proceed without account context
+                // They will see all data via TenantScope override
+                return $next($request);
             }
+
+            // Regular users without an account context will be restricted
+            // to global resources only (account_id IS NULL)
         }
 
         return $next($request);
