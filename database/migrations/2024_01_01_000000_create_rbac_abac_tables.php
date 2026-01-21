@@ -24,7 +24,7 @@ return new class extends Migration
         Schema::create($tables['roles'], function (Blueprint $table) use ($tables) {
                         $table->ulid('id')->primary();
 
-            $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
+            $table->foreignUlid('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
             $table->string('name');
             // Zeus capability: 'none', 'tenant', 'system'
             // system: bypass EVERYTHING.
@@ -59,7 +59,7 @@ return new class extends Migration
         // 5. Account User (Membership Pivot)
         Schema::create($tables['account_user'], function (Blueprint $table) use ($tables) {
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('account_id')->constrained($tables['accounts'])->onDelete('cascade');
+            $table->foreignUlid('account_id')->constrained($tables['accounts'])->onDelete('cascade');
             // Could add 'is_owner' or similar metadata here if needed
             $table->primary(['user_id', 'account_id']);
         });
@@ -72,7 +72,7 @@ return new class extends Migration
         // If Role is Global, User-Role link implies scope is Global.
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
              $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-             $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
+             $table->foreignUlid('role_id')->constrained($tables['roles'])->onDelete('cascade');
              $table->primary(['user_id', 'role_id']);
         });
 
@@ -95,10 +95,10 @@ return new class extends Migration
         Schema::create($tables['activity_logs'], function (Blueprint $table) use ($tables) {
                         $table->ulid('id')->primary();
 
-            $table->foreignId('tenant_id')->nullable(); // Denormalized account_id
+            $table->foreignUlid('tenant_id')->nullable(); // Denormalized account_id
             $table->string('event'); // e.g. "role.created"
-            $table->nullableMorphs('causer'); // Who did it
-            $table->nullableMorphs('subject'); // What was changed
+            $table->nullableUlidMorphs('causer'); // Who did it
+            $table->nullableUlidMorphs('subject'); // What was changed
             $table->json('properties')->nullable(); // Diff/Details
             $table->timestamps();
         });

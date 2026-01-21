@@ -20,13 +20,13 @@ return new class extends Migration
             // $table->id();
              $table->ulid('id')->primary();
             // Account scoping (nullable for global assignments)
-            $table->foreignId('account_id')
+            $table->foreignUlid('account_id')
                 ->nullable()
                 ->constrained($tables['accounts'])
                 ->onDelete('cascade');
 
             // Permission being assigned
-            $table->foreignId('permission_id')
+            $table->foreignUlid('permission_id')
                 ->constrained($tables['permissions'])
                 ->onDelete('cascade');
 
@@ -51,7 +51,7 @@ return new class extends Migration
         // Recreate role_user pivot (this one stays as-is)
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
+            $table->foreignUlid('role_id')->constrained($tables['roles'])->onDelete('cascade');
             $table->primary(['user_id', 'role_id']);
         });
     }
