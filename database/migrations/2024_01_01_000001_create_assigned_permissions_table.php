@@ -50,7 +50,7 @@ return new class extends Migration
 
         // Recreate role_user pivot (this one stays as-is)
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUlid('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignUlid('role_id')->constrained($tables['roles'])->onDelete('cascade');
             $table->primary(['user_id', 'role_id']);
         });
@@ -80,7 +80,7 @@ return new class extends Migration
         // });
 
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUlid('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
             $table->primary(['user_id', 'role_id']);
         });

@@ -58,7 +58,7 @@ return new class extends Migration
 
         // 5. Account User (Membership Pivot)
         Schema::create($tables['account_user'], function (Blueprint $table) use ($tables) {
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignUlid('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignUlid('account_id')->constrained($tables['accounts'])->onDelete('cascade');
             // Could add 'is_owner' or similar metadata here if needed
             $table->primary(['user_id', 'account_id']);
@@ -71,7 +71,7 @@ return new class extends Migration
         // Usually, if Role belongs to Account 1, User-Role link implies scope is Account 1.
         // If Role is Global, User-Role link implies scope is Global.
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
-             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+             $table->foreignUlid('user_id')->constrained('users')->onDelete('cascade');
              $table->foreignUlid('role_id')->constrained($tables['roles'])->onDelete('cascade');
              $table->primary(['user_id', 'role_id']);
         });
