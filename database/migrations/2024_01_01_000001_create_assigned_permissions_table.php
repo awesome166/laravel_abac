@@ -17,8 +17,8 @@ return new class extends Migration
 
         // Create unified assigned_permissions table with polymorphic support
         Schema::create($tables['assigned_permissions'], function (Blueprint $table) use ($tables) {
-            $table->id();
-
+            // $table->id();
+             $table->ulid('id')->primary();
             // Account scoping (nullable for global assignments)
             $table->foreignId('account_id')
                 ->nullable()
