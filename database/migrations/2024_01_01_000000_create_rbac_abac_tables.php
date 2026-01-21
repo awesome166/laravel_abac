@@ -12,7 +12,7 @@ return new class extends Migration
 
         // 1. Accounts (Tenants)
         Schema::create($tables['accounts'], function (Blueprint $table) {
-            $table->id();
+              $table->ulid('id')->primary();
             $table->string('name');
             $table->string('slug')->unique();
             $table->string('plan')->nullable();
@@ -22,7 +22,7 @@ return new class extends Migration
 
         // 2. Roles
         Schema::create($tables['roles'], function (Blueprint $table) use ($tables) {
-            $table->id();
+            $table->ulid();
             $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
             $table->string('name');
             // Zeus capability: 'none', 'tenant', 'system'
@@ -38,7 +38,7 @@ return new class extends Migration
 
         // 3. Permissions
         Schema::create($tables['permissions'], function (Blueprint $table) {
-            $table->id();
+            $table->ulid();
             $table->string('name')->unique(); // e.g. "posts" or "settings.view"
             // expansion: 'on-off' (single) or 'crud' (expands to create, read, update, delete)
             $table->string('type')->default('on-off');
@@ -46,13 +46,13 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 4. Permission Role (Many-to-Many)
-        Schema::create($tables['permission_role'], function (Blueprint $table) use ($tables) {
-            $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
-            $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
-            $table->json('access')->nullable(); // Granular access for CRUD (e.g. {"create": true, "read": false})
-            $table->primary(['permission_id', 'role_id']);
-        });
+        // // 4. Permission Role (Many-to-Many)
+        // Schema::create($tables['permission_role'], function (Blueprint $table) use ($tables) {
+        //     $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
+        //     $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
+        //     $table->json('access')->nullable(); // Granular access for CRUD (e.g. {"create": true, "read": false})
+        //     $table->primary(['permission_id', 'role_id']);
+        // });
 
         // 5. Account User (Membership Pivot)
         Schema::create($tables['account_user'], function (Blueprint $table) use ($tables) {
@@ -74,24 +74,24 @@ return new class extends Migration
              $table->primary(['user_id', 'role_id']);
         });
 
-        // 7. Permission User (Direct Assignments)
-        Schema::create('permission_user', function (Blueprint $table) use ($tables) {
-             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-             $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
-             // Direct permission assignment might be global or tenant scoped?
-             // Prompt doesn't specify deeply, but standard is global or we need 'account_id' here.
-             // Let's assume global for direct grants, or we add account_id for context.
-             // For simplicity/robustness, let's add nullable account_id to scope direct permission?
-             // "A user may belong to many accounts."
-             // If I give "edit_posts" to User, is it for Account A or B?
-             // It MUST be scoped if tenancy is enabled.
-             $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
-             $table->json('access')->nullable(); // Granular access
-        });
+        // // 7. Permission User (Direct Assignments)
+        // Schema::create('permission_user', function (Blueprint $table) use ($tables) {
+        //      $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+        //      $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
+        //      // Direct permission assignment might be global or tenant scoped?
+        //      // Prompt doesn't specify deeply, but standard is global or we need 'account_id' here.
+        //      // Let's assume global for direct grants, or we add account_id for context.
+        //      // For simplicity/robustness, let's add nullable account_id to scope direct permission?
+        //      // "A user may belong to many accounts."
+        //      // If I give "edit_posts" to User, is it for Account A or B?
+        //      // It MUST be scoped if tenancy is enabled.
+        //      $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
+        //      $table->json('access')->nullable(); // Granular access
+        // });
 
         // 8. Activity Logs
         Schema::create($tables['activity_logs'], function (Blueprint $table) use ($tables) {
-            $table->id();
+            $table->ulid();
             $table->foreignId('tenant_id')->nullable(); // Denormalized account_id
             $table->string('event'); // e.g. "role.created"
             $table->nullableMorphs('causer'); // Who did it
@@ -105,10 +105,10 @@ return new class extends Migration
     {
         $tables = config('abacpermissions.tables');
         Schema::dropIfExists($tables['activity_logs']);
-        Schema::dropIfExists('permission_user');
+        // Schema::dropIfExists('permission_user');
         Schema::dropIfExists('role_user');
         Schema::dropIfExists($tables['account_user']);
-        Schema::dropIfExists($tables['permission_role']);
+        // Schema::dropIfExists($tables['permission_role']);
         Schema::dropIfExists($tables['permissions']);
         Schema::dropIfExists($tables['roles']);
         Schema::dropIfExists($tables['accounts']);

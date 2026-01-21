@@ -45,12 +45,23 @@ trait HasAbac
     /**
      * Get all permissions for this user (through assignments)
      */
-    public function permissions()
+    // public function permissions()
+    // {
+    //     return \AbacPermissions\Models\Permission::whereHas('assignments', function ($query) {
+    //         $query->where('assignee_type', 'user')
+    //             ->where('assignee_id', $this->id);
+    //     });
+    // }
+
+        public function permissions(): \Illuminate\Database\Eloquent\Relations\MorphToMany
     {
-        return \AbacPermissions\Models\Permission::whereHas('assignments', function ($query) {
-            $query->where('assignee_type', 'user')
-                ->where('assignee_id', $this->id);
-        });
+        return $this->morphToMany(
+            \AbacPermissions\Models\Permission::class,
+            'assignee',
+            'assigned_permissions',
+            'assignee_id',
+            'permission_id'
+        );
     }
 
     /**
