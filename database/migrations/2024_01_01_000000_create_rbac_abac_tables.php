@@ -22,7 +22,8 @@ return new class extends Migration
 
         // 2. Roles
         Schema::create($tables['roles'], function (Blueprint $table) use ($tables) {
-            $table->ulid();
+                        $table->ulid('id')->primary();
+
             $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
             $table->string('name');
             // Zeus capability: 'none', 'tenant', 'system'
@@ -38,7 +39,8 @@ return new class extends Migration
 
         // 3. Permissions
         Schema::create($tables['permissions'], function (Blueprint $table) {
-            $table->ulid();
+                        $table->ulid('id')->primary();
+
             $table->string('name')->unique(); // e.g. "posts" or "settings.view"
             // expansion: 'on-off' (single) or 'crud' (expands to create, read, update, delete)
             $table->string('type')->default('on-off');
@@ -91,7 +93,8 @@ return new class extends Migration
 
         // 8. Activity Logs
         Schema::create($tables['activity_logs'], function (Blueprint $table) use ($tables) {
-            $table->ulid();
+                        $table->ulid('id')->primary();
+
             $table->foreignId('tenant_id')->nullable(); // Denormalized account_id
             $table->string('event'); // e.g. "role.created"
             $table->nullableMorphs('causer'); // Who did it
