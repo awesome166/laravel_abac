@@ -11,9 +11,9 @@ return new class extends Migration
         $tables = config('abacpermissions.tables');
 
         // Drop old pivot tables
-        Schema::dropIfExists('permission_user');
+        // Schema::dropIfExists('permission_user');
         Schema::dropIfExists('role_user');
-        Schema::dropIfExists($tables['permission_role']);
+        // Schema::dropIfExists($tables['permission_role']);
 
         // Create unified assigned_permissions table with polymorphic support
         Schema::create($tables['assigned_permissions'], function (Blueprint $table) use ($tables) {
@@ -65,19 +65,19 @@ return new class extends Migration
         Schema::dropIfExists('role_user');
 
         // Recreate old pivot tables
-        Schema::create($tables['permission_role'], function (Blueprint $table) use ($tables) {
-            $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
-            $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
-            $table->json('access')->nullable();
-            $table->primary(['permission_id', 'role_id']);
-        });
+        // Schema::create($tables['permission_role'], function (Blueprint $table) use ($tables) {
+        //     $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
+        //     $table->foreignId('role_id')->constrained($tables['roles'])->onDelete('cascade');
+        //     $table->json('access')->nullable();
+        //     $table->primary(['permission_id', 'role_id']);
+        // });
 
-        Schema::create('permission_user', function (Blueprint $table) use ($tables) {
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
-            $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
-            $table->json('access')->nullable();
-        });
+        // Schema::create('permission_user', function (Blueprint $table) use ($tables) {
+        //     $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+        //     $table->foreignId('permission_id')->constrained($tables['permissions'])->onDelete('cascade');
+        //     $table->foreignId('account_id')->nullable()->constrained($tables['accounts'])->onDelete('cascade');
+        //     $table->json('access')->nullable();
+        // });
 
         Schema::create('role_user', function (Blueprint $table) use ($tables) {
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
