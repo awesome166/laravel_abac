@@ -3,9 +3,12 @@
 namespace AbacPermissions\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 
 class Role extends Model
 {
+    use HasUlids;
+
     protected $guarded = [];
 
     /**
