@@ -2,12 +2,12 @@
 
 namespace AbacPermissions\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphPivot;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class AssignedPermission extends Model
+class AssignedPermission extends MorphPivot
 {
     use HasUlids;
 
@@ -17,15 +17,21 @@ class AssignedPermission extends Model
         'access' => 'array',
     ];
 
-    /**
-     * Table name for Eloquent
-     */
-    protected $table;
 
-    public function __construct(array $attributes = [])
+
+    protected $hidden = [
+        'created_at',
+        'updated_at',
+    ];
+
+    /**
+     * Get the table associated with the model.
+     *
+     * @return string
+     */
+    public function getTable()
     {
-        $this->table = config('abacpermissions.tables.assigned_permissions', 'assigned_permissions');
-        parent::__construct($attributes);
+        return config('abacpermissions.tables.assigned_permissions', 'assigned_permissions');
     }
 
     /**
@@ -128,17 +134,19 @@ class AssignedPermission extends Model
         // Handle on-off type permissions
         if ($permission->type === 'on-off') {
             // If no access specified, default to 'on' (granted)
-            if (!$this->hasAccessRestrictions()) {
+            // if (!$this->hasAccessRestrictions()) {
+           if (empty($access)) {
+
                 return [$permission->name];
             }
 
             // Check if access is explicitly set to 'off' (denied)
-            if (in_array('off', $this->access)) {
+            if (in_array('off', $access)) {
                 return []; // Permission denied, return empty
             }
 
             // If access contains 'on', grant the permission
-            if (in_array('on', $this->access)) {
+            if (in_array('on', $access)) {
                 return [$permission->name];
             }
 
@@ -149,13 +157,14 @@ class AssignedPermission extends Model
         // Handle CRUD type permissions
         if ($permission->type === 'crud') {
             // If no access restrictions, return full CRUD
-            if (!$this->hasAccessRestrictions()) {
+            // if (!$this->hasAccessRestrictions()) {
+            if (empty($access)) {
                 return $permission->expand();
             }
 
             // Return only the allowed actions
             $expanded = [];
-            foreach ($this->access as $action) {
+            foreach ($access as $action) {
                 $expanded[] = "{$permission->name}:{$action}";
             }
 

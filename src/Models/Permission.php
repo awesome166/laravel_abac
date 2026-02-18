@@ -42,6 +42,13 @@ class Permission extends Model
             ->with('assignee');
     }
 
+    public function assignedToAccounts()
+    {
+        return $this->assignments()
+            ->where('assignee_type', 'account')
+            ->with('assignee');
+    }
+
     /**
      * Legacy accessor for roles (for backward compatibility in queries)
      */

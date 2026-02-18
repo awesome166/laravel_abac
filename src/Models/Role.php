@@ -11,39 +11,46 @@ class Role extends Model
 
     protected $guarded = [];
 
-    /**
-     * Assigned permissions (polymorphic relationship)
-     */
+    protected $with = ['assignedPermissions'];
+    protected $hidden = [
+        'created_at',
+        'updated_at',
+    ];
+
+
     public function assignedPermissions()
     {
-        return $this->morphMany(
-            config('abacpermissions.models.assigned_permission', \AbacPermissions\Models\AssignedPermission::class),
-            'assignee',
-            'assignee_type',
-            'assignee_id'
-        );
+        return $this->morphMany(AssignedPermission::class, 'assignee');
     }
 
-    /**
-     * Get all permissions for this role (through assignments)
-     */
-    // public function permissions()
-    // {
-    //     return \AbacPermissions\Models\Permission::whereHas('assignments', function ($query) {
-    //         $query->where('assignee_type', 'role')
-    //             ->where('assignee_id', $this->id);
-    //     });
-    // }
-    public function permissions(): \Illuminate\Database\Eloquent\Relations\MorphToMany
+
+    public function getMorphClass()
     {
+        return 'role';
+    }
+
+ //////
+
+    // public function assignedPermissions() {
+    //     return $this->morphMany(
+    //         config('abacpermissions.models.assigned_permission', \AbacPermissions\Models\AssignedPermission::class),
+    //         'assignee'
+    //     );
+    // }
+    public function permissions(): \Illuminate\Database\Eloquent\Relations\MorphToMany {
         return $this->morphToMany(
-            \AbacPermissions\Models\Permission::class,
+            config('abacpermissions.models.permission', \AbacPermissions\Models\Permission::class),
             'assignee',
             'assigned_permissions',
             'assignee_id',
             'permission_id'
-        );
+        )->using(config('abacpermissions.models.assigned_permission', \AbacPermissions\Models\AssignedPermission::class));
     }
+
+    public function scopeGetPermissionsWithAccess($query) {
+        return $query->with(['assignedPermissions.permission']);
+    }
+
     /**
      * Get permissions with their access restrictions
      */
