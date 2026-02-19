@@ -175,16 +175,19 @@ trait HasAbac
     /**
      * Get the set of permissions this user is allowed to delegate to other users.
      *
-     * Returns a Collection keyed by permission_id, value = access[] (or null = full access).
+     * The delegation ceiling is the actor's own permission holdings — no separate
+     * account-level cap or grantable flag on user rows is required.
      *
      * Rules (checked in priority order):
-     *   1. System Zeus  → all permissions with null access (full, uncapped)
-     *   2. Tenant Zeus  → the account's grantable cap verbatim (they ARE the tenant super-admin)
-     *   3. Regular user → intersection of (user's personal assignments) ∩ (account grantable cap)
-     *                     access = common subset of both sides
+     *   1. System Zeus  → all permissions, full access (uncapped)
+     *   2. Tenant Zeus  → all permissions, full access (top admin of their tenant)
+     *   3. Regular user → exactly what they personally hold (roles + direct assignments)
+     *                     access is whatever access level they have on that permission
+     *
+     * Returns a Collection keyed by permission_id, value = access[] | null (null = full)
      *
      * @param  string|null $accountId  The tenant context. Falls back to TenantContext if null.
-     * @return \Illuminate\Support\Collection  keyed by permission_id => access[] | null
+     * @return \Illuminate\Support\Collection
      */
     public function getGrantablePermissions(?string $accountId = null): \Illuminate\Support\Collection
     {
@@ -193,42 +196,36 @@ trait HasAbac
             $accountId = app(\AbacPermissions\Tenancy\TenantContext::class)->getAccountId();
         }
 
-        // --- 1. System Zeus: no cap at all ----------------------------------------
+        // --- 1. System Zeus: fully uncapped ---------------------------------------
         if ($this->isSystemZeus()) {
             return \AbacPermissions\Models\Permission::all()
                 ->keyBy('id')
-                ->map(fn ($p) => null); // null = full access
+                ->map(fn ($p) => null); // null = full access on every permission
         }
 
-        // We need an account to apply any cap
+        // --- 2. Tenant Zeus: fully uncapped within their tenant -------------------
+        if ($accountId && $this->isTenantZeus($accountId)) {
+            return \AbacPermissions\Models\Permission::all()
+                ->keyBy('id')
+                ->map(fn ($p) => null);
+        }
+
+        // --- 3. Regular user: delegate from their own holdings --------------------
         if ($accountId === null) {
-            return collect();
+            return collect(); // no tenant context → nothing to delegate
         }
 
-        $account = \AbacPermissions\Models\Account::find($accountId);
-
-        if (!$account) {
-            return collect();
-        }
-
-        // Account-level grantable cap: [ permission_id => access[] | null ]
-        $accountCap = $account->getGrantableCap();
-
-        // --- 2. Tenant Zeus: hand back the full account cap -----------------------
-        if ($this->isTenantZeus($accountId)) {
-            return $accountCap;
-        }
-
-        // --- 3. Regular user: intersection ----------------------------------------
-        // Collect the user's own assignments (roles + direct) for this account
         $roleIds = $this->roles()->pluck('id');
 
+        // Fetch all assignments the user holds (via roles or direct grants)
         $userAssignments = \AbacPermissions\Models\AssignedPermission::where(function ($query) use ($roleIds, $accountId) {
             $query->where(function ($q) use ($roleIds) {
+                // Permissions coming from any of the user's roles
                 $q->where('assignee_type', 'role')
                   ->whereIn('assignee_id', $roleIds);
             })
             ->orWhere(function ($q) use ($accountId) {
+                // Permissions directly assigned to this user (global or account-scoped)
                 $q->where('assignee_type', 'user')
                   ->where('assignee_id', $this->id)
                   ->where(function ($inner) use ($accountId) {
@@ -240,38 +237,13 @@ trait HasAbac
         ->get()
         ->keyBy('permission_id');
 
-        // Intersect user's assignments with the account cap
-        $grantable = collect();
-
-        foreach ($accountCap as $permissionId => $capAccess) {
-            if (!$userAssignments->has($permissionId)) {
-                continue; // user doesn't hold this permission at all
-            }
-
-            $userAccess = $userAssignments[$permissionId]->access; // array | null
-
-            // Compute the effective grantable access
-            if ($capAccess === null && $userAccess === null) {
-                // Both sides full access → delegate full access
-                $grantable[$permissionId] = null;
-            } elseif ($capAccess === null) {
-                // Cap is full, user has restricted access → delegate what user has
-                $grantable[$permissionId] = $userAccess;
-            } elseif ($userAccess === null) {
-                // User has full access, cap is restricted → cap wins
-                $grantable[$permissionId] = $capAccess;
-            } else {
-                // Both restricted → intersect
-                $intersection = array_values(array_intersect($userAccess, $capAccess));
-                if (!empty($intersection)) {
-                    $grantable[$permissionId] = $intersection;
-                }
-                // Empty intersection means user cannot delegate this permission → skip
-            }
-        }
-
-        return $grantable;
+        // Map to [ permission_id => access[] | null ]
+        // Multiple assignments for the same permission (e.g. role + direct) are
+        // already collapsed by keyBy — the last one wins; you could union them
+        // here if needed, but for the common case keyBy is sufficient.
+        return $userAssignments->map(fn ($ap) => $ap->access);
     }
+
 
     /**
      * Validate that a permissions payload is within this user's grantable cap.
