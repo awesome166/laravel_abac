@@ -140,16 +140,20 @@ trait HasAbac
 
 
     /**
-     * Get all permissions assigned to the user, their roles, or the current account context.
-     *
-     * @return \Illuminate\Support\Collection
+     * Get all permissions assigned to the user (via roles + direct grants).
+     * Returns a comma-separated string of expanded permission names.
      */
-        public function getAllPermissions(): string
+    public function getAllPermissions(): string
     {
-        $roleIds = $this->roles()->pluck('id');
+        // Use the already-loaded collection if available (avoids extra query
+        // when User has $with = ['roles'])
+        $roleIds = $this->relationLoaded('roles')
+            ? $this->roles->pluck('id')
+            : $this->roles()->pluck('id');
+
         $accountId = app(\AbacPermissions\Tenancy\TenantContext::class)->getAccountId();
 
-        // Get all assigned permissions for this user's roles and direct assignments
+        // Fetch all assignments for this user's roles and direct grants
         $assignments = \AbacPermissions\Models\AssignedPermission::where(function ($query) use ($roleIds, $accountId) {
             $query->where(function ($q) use ($roleIds) {
                 $q->where('assignee_type', 'role')
@@ -158,17 +162,20 @@ trait HasAbac
             ->orWhere(function ($q) use ($accountId) {
                 $q->where('assignee_type', 'user')
                     ->where('assignee_id', $this->id);
+            })
+
+            ->orWhere(function ($q) use ($accountId) {
+                $q->where('assignee_type', 'account')
+                    ->where('assignee_id', $accountId);
             });
         })
-        ->with('permission')
+        ->with('permission') // eager-load so getExpandedPermissions() doesn't need to lazy-load
         ->get();
 
-        // Expand each assignment and collect all permission strings
         $expandedPermissions = $assignments->flatMap(function ($assignment) {
             return $assignment->getExpandedPermissions();
         });
 
-        // Return unique permissions as comma-separated string
         return $expandedPermissions->unique()->sort()->implode(', ');
     }
 

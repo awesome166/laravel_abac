@@ -144,20 +144,29 @@ class AssignedPermission extends MorphPivot
 
     /**
      * Get the expanded permissions based on access restrictions.
-     * Safe to call regardless of whether 'permission' was eager-loaded.
+     *
+     * Works safely in both contexts:
+     *   - Fetched via ->with('permission') eager load (relation is already loaded)
+     *   - Fetched without eager load (falls back to Permission::find on the permission_id)
+     *
+     * Does NOT call loadMissing() because that can fail when AssignedPermission is
+     * hydrated as a MorphPivot without its foreignKey/relatedKey context set.
      */
     public function getExpandedPermissions(): array
     {
-        // Defensive: load the permission relationship if it wasn't eager-loaded
-        $this->loadMissing('permission');
-
-        $permission = $this->permission;
+        // Safe relation resolution: eager-loaded takes priority, otherwise direct find.
+        if ($this->relationLoaded('permission')) {
+            $permission = $this->getRelation('permission');
+        } else {
+            $permClass = config('abacpermissions.models.permission', \AbacPermissions\Models\Permission::class);
+            $permission = $permClass::find($this->permission_id);
+        }
 
         if (!$permission) {
             return [];
         }
 
-        $access = $this->access; // correctly read from the cast attribute
+        $access = $this->access; // cast to array via $casts
 
         // Handle on-off type permissions
         if ($permission->type === 'on-off') {
