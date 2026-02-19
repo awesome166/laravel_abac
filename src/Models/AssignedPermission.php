@@ -2,14 +2,27 @@
 
 namespace AbacPermissions\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphPivot;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class AssignedPermission extends Model
+class AssignedPermission extends MorphPivot
 {
     use HasUlids;
+
+    /**
+     * Explicitly declare the table so direct queries (not through pivot) work.
+     * MorphPivot normally gets the table injected by the relationship —
+     * declaring it here makes AssignedPermission::where(...) work standalone.
+     */
+    public $table = 'assigned_permissions';
+
+    /**
+     * Allow standalone querying (MorphPivot disables incrementing by default,
+     * which is correct since we use ULIDs).
+     */
+    public $incrementing = false;
 
     protected $guarded = [];
 
