@@ -14,7 +14,8 @@ class AssignedPermission extends MorphPivot
     protected $guarded = [];
 
     protected $casts = [
-        'access' => 'array',
+        'access'    => 'array',
+        'grantable' => 'boolean',
     ];
 
 
@@ -62,6 +63,14 @@ class AssignedPermission extends MorphPivot
             config('abacpermissions.models.account', Account::class),
             'account_id'
         );
+    }
+
+    /**
+     * Scope: only grantable assignments (can be redistributed to other users).
+     */
+    public function scopeGrantable($query)
+    {
+        return $query->where('grantable', true);
     }
 
     /**
@@ -131,33 +140,27 @@ class AssignedPermission extends MorphPivot
             return [];
         }
 
+        $access = $this->access; // correctly read from the cast attribute
+
         // Handle on-off type permissions
         if ($permission->type === 'on-off') {
-            // If no access specified, default to 'on' (granted)
-            // if (!$this->hasAccessRestrictions()) {
-           if (empty($access)) {
-
+            // No access specified → default to granted
+            if (empty($access)) {
                 return [$permission->name];
             }
 
-            // Check if access is explicitly set to 'off' (denied)
+            // Explicitly denied
             if (in_array('off', $access)) {
-                return []; // Permission denied, return empty
+                return [];
             }
 
-            // If access contains 'on', grant the permission
-            if (in_array('on', $access)) {
-                return [$permission->name];
-            }
-
-            // Default to granted if access array exists but doesn't contain 'off'
+            // Explicitly granted or any other value → grant
             return [$permission->name];
         }
 
         // Handle CRUD type permissions
         if ($permission->type === 'crud') {
-            // If no access restrictions, return full CRUD
-            // if (!$this->hasAccessRestrictions()) {
+            // No access restrictions → full CRUD
             if (empty($access)) {
                 return $permission->expand();
             }
@@ -167,7 +170,6 @@ class AssignedPermission extends MorphPivot
             foreach ($access as $action) {
                 $expanded[] = "{$permission->name}:{$action}";
             }
-
             return $expanded;
         }
 
@@ -175,3 +177,4 @@ class AssignedPermission extends MorphPivot
         return $permission->expand();
     }
 }
+

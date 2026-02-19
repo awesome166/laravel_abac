@@ -32,7 +32,7 @@ return new class extends Migration
 
             // Polymorphic assignee (user, token, role)
             $table->string('assignee_id');
-            $table->enum('assignee_type', ['user', 'token', 'role']);
+            $table->enum('assignee_type', ['user', 'token', 'role','account']);
 
             // Granular access for CRUD permissions (e.g., ['create', 'read'])
             $table->json('access')->nullable();

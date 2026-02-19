@@ -10,6 +10,7 @@ use AbacPermissions\Models\Account;
 use AbacPermissions\Tests\Integration\TestUser; // Fallback for test env?
 // In Real app, User model is configurable.
 use Illuminate\Support\Facades\Config;
+use Illuminate\Auth\Access\AuthorizationException;
 
 class PermissionManagementController extends Controller
 {
@@ -79,14 +80,23 @@ class PermissionManagementController extends Controller
 
     /**
      * Sync permissions to a subject.
-     * Payload: list of { id: 1, access: ['read'] }
+     * Payload: list of { id: 1, access: ['read'], grantable: false }
+     *
+     * The authenticated actor must hold each requested permission within
+     * their grantable cap. System Zeus bypasses this check entirely.
      */
     public function sync(Request $request, $type, $id)
     {
-        $subject = $this->resolveSubject($type, $id);
+        $subject   = $this->resolveSubject($type, $id);
+        $input     = $request->input('permissions', []);
+        $accountId = $request->input('account_id');
 
-        // $request->input('permissions') should be array of objects
-        $input = $request->input('permissions', []);
+        // --- Delegation cap guard ------------------------------------------------
+        $actor = $request->user();
+        if ($actor && method_exists($actor, 'authorizePermissionDelegation')) {
+            $actor->authorizePermissionDelegation($input, $accountId);
+        }
+        // -------------------------------------------------------------------------
 
         // Delete existing assignments for this subject
         \AbacPermissions\Models\AssignedPermission::where('assignee_id', $id)
@@ -95,23 +105,24 @@ class PermissionManagementController extends Controller
 
         // Create new assignments
         foreach ($input as $item) {
-            $permId = $item['id'];
-            $access = $item['access'] ?? null;
+            $permId    = $item['id'];
+            $access    = $item['access']    ?? null;
+            $grantable = $item['grantable'] ?? false;
 
             \AbacPermissions\Models\AssignedPermission::create([
                 'permission_id' => $permId,
-                'assignee_id' => $id,
+                'assignee_id'   => $id,
                 'assignee_type' => $type,
-                'account_id' => $type === 'user' ? ($item['account_id'] ?? null) : null,
-                'access' => $access,
+                'account_id'    => $type === 'user' ? ($accountId ?? null) : null,
+                'access'        => $access,
+                'grantable'     => $grantable,
             ]);
         }
 
         // Flush cache for affected users
         if ($type === 'user') {
             \AbacPermissions\Facades\AbacPermissions::flushCache($subject);
-        } else if ($type === 'role') {
-            // Flush cache for all users with this role
+        } elseif ($type === 'role') {
             $userIds = \Illuminate\Support\Facades\DB::table('role_user')
                 ->where('role_id', $id)
                 ->pluck('user_id');
@@ -123,6 +134,49 @@ class PermissionManagementController extends Controller
         }
 
         return response()->json(['status' => 'synced']);
+    }
+
+    /**
+     * Get the grantable permissions for the currently authenticated user.
+     *
+     * Returns the list of permissions (with allowed access) that this user
+     * may assign to other users. This is what the frontend should use to
+     * populate the "assign permissions" UI when creating/editing sub-users.
+     *
+     * Response shape:
+     *   [
+     *     { id, name, type, grantable_access: ['read','update'] | null },
+     *     ...
+     *   ]
+     */
+    public function grantable(Request $request)
+    {
+        $actor = $request->user();
+
+        if (!$actor || !method_exists($actor, 'getGrantablePermissions')) {
+            return response()->json([]);
+        }
+
+        $accountId = $request->query('account_id');
+        $cap = $actor->getGrantablePermissions($accountId);
+
+        // Hydrate permission records so we can return name + type
+        $permissionIds = $cap->keys()->toArray();
+        $permissions   = Permission::whereIn('id', $permissionIds)->get()->keyBy('id');
+
+        $result = $cap->map(function ($access, $permId) use ($permissions) {
+            $perm = $permissions->get($permId);
+            if (!$perm) return null;
+
+            return [
+                'id'              => $perm->id,
+                'name'            => $perm->name,
+                'type'            => $perm->type,
+                'grantable_access' => $access, // null = full access allowed
+            ];
+        })->values()->filter()->values();
+
+        return response()->json($result);
     }
 
     /**

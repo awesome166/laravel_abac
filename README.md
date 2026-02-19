@@ -9,6 +9,7 @@ A comprehensive SaaS multi-tenancy and ABAC access control package for Laravel. 
 - **Zeus Capability**:
     - **System Level**: Bypass all permissions globally.
     - **Tenant Level**: Bypass all permissions within a specific tenant.
+- **Permission Delegation**: Two-tier cap system — what a tenant account is allowed to distribute, and what each user may further delegate to others.
 - **Caching**: Automatic permission caching with invalidation on updates.
 - **Activity Logging**: Built-in service to log security events.
 - **Developer Friendly**: Facades, Traits, and Middleware included.
@@ -265,7 +266,260 @@ $owner->roles()->attach($tenantZeus->id);
 // When set to their account, they bypass all permission checks
 // Cannot access other accounts' data
 ```
+---
 
+### Understanding the Permission Delegation System
+
+The delegation system enforces a **two-tier cap** on who can grant what permissions to whom.
+This is the core model for multi-tenant SaaS: a platform operator decides what each account (tenant) can distribute, and the account admin distributes within that cap.
+
+#### Mental Model
+
+```
+Platform (System Zeus / seeder)
+  │
+  ├─ assigns permissions to Account (grantable = true)
+  │     → this becomes the account's redistributable cap
+  │
+  └─ Account members receive permissions within that cap
+        │
+        ├─ Tenant Zeus  → can grant the FULL account cap to any user
+        │
+        └─ Regular user → can only grant the INTERSECTION of:
+                           (permissions they personally hold)
+                           ∩
+                           (account grantable cap)
+```
+
+A user **can never escalate** — they cannot grant a permission they don't hold, and cannot exceed what the account cap allows.
+
+#### The `grantable` Flag
+
+The `assigned_permissions` table has a `grantable` boolean column (added by migration `2024_01_01_000002`).
+
+| `assignee_type` | `grantable = true` means |
+|-----------------|---------------------------|
+| `account`       | The account may distribute this permission to its users/roles. This is the **account cap**. |
+| `user` / `role` | The holder may further delegate this permission to other users when creating/editing accounts. |
+
+#### Seeding Account Caps
+
+When provisioning a new tenant, the platform should assign the permissions it is entitled to, with `grantable = true`:
+
+```php
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Models\Permission;
+use AbacPermissions\Models\Account;
+
+$account  = Account::find($accountId);
+$postsPerm = Permission::where('name', 'posts')->first();
+
+// Grant the account the ability to distribute read+update of posts
+AssignedPermission::create([
+    'permission_id' => $postsPerm->id,
+    'assignee_id'   => $account->id,
+    'assignee_type' => 'account',   // MUST be 'account'
+    'account_id'    => null,         // leave null for account-level assignments
+    'access'        => ['read', 'update'],  // restrict to these actions; null = full access
+    'grantable'     => true,         // marks this as redistributable
+]);
+
+// Grant full access to another permission (null access = all actions)
+AssignedPermission::create([
+    'permission_id' => Permission::where('name', 'reports')->value('id'),
+    'assignee_id'   => $account->id,
+    'assignee_type' => 'account',
+    'account_id'    => null,
+    'access'        => null,   // null = full access for on-off or all CRUD actions
+    'grantable'     => true,
+]);
+```
+
+> **Important:** `Account::getMorphClass()` returns `'account'`, so `assignee_type` must be the string `'account'` (not the fully-qualified class name).
+
+#### Getting What a User Can Delegate
+
+Call `getGrantablePermissions($accountId)` on any user model that uses `HasAbac`.
+
+Returns a **Collection keyed by `permission_id`**, value is `access[]` or `null` (null = full access).
+
+```php
+$user = auth()->user();
+
+// Uses TenantContext if $accountId is omitted
+$cap = $user->getGrantablePermissions($accountId);
+
+foreach ($cap as $permissionId => $allowedAccess) {
+    // $allowedAccess = ['read', 'update'] or null (= full)
+    echo "Can delegate permission {$permissionId}: " . ($allowedAccess ? implode(', ', $allowedAccess) : 'full');
+}
+```
+
+**Zeus behaviour:**
+
+| Actor | Result |
+|-------|--------|
+| **System Zeus** | Returns ALL permissions with `null` access (fully uncapped) |
+| **Tenant Zeus** | Returns the account's full grantable cap — they are the tenant super-admin |
+| **Regular user** | Returns intersection: only permissions they personally hold AND that are in the account cap, access restricted to the minimum of both sides |
+| No account context | Returns empty collection (for non-System Zeus) |
+
+#### Validating a Delegation Payload
+
+Before writing permissions on behalf of another user, call `authorizePermissionDelegation()`. It throws `\Illuminate\Auth\Access\AuthorizationException` if anything in the payload exceeds the actor's cap.
+
+```php
+$actor = auth()->user();
+
+$payload = [
+    ['id' => $postsPermId,   'access' => ['read', 'update']],
+    ['id' => $reportsPermId, 'access' => null],  // requesting full access
+];
+
+try {
+    // Throws if any item is outside the actor's grantable cap
+    $actor->authorizePermissionDelegation($payload, $accountId);
+
+    // Safe to persist
+    foreach ($payload as $item) {
+        AssignedPermission::create([
+            'permission_id' => $item['id'],
+            'assignee_id'   => $targetUserId,
+            'assignee_type' => 'user',
+            'account_id'    => $accountId,
+            'access'        => $item['access'],
+            'grantable'     => $item['grantable'] ?? false,
+        ]);
+    }
+} catch (\Illuminate\Auth\Access\AuthorizationException $e) {
+    return response()->json(['error' => $e->getMessage()], 403);
+}
+```
+
+> **System Zeus auto-bypass:** `authorizePermissionDelegation()` returns immediately without any checks when the actor is System Zeus.
+
+#### What a User Can Receive vs. Grant
+
+This is the critical distinction:
+
+| Method | Purpose | Zeus short-circuit |
+|--------|---------|-------------------|
+| `getAllPermissions()` | What the user **has** (for auth checks). Always returns only directly assigned permissions. | Zeus bypasses `hasPermission()` checks, does NOT inflate this list. |
+| `getGrantablePermissions($accountId)` | What the user **can give** to others. | System Zeus → all. Tenant Zeus → full account cap. |
+
+```php
+// What does this user have? (for hasPermission / middleware)
+$permissions = $user->getAllPermissions();
+// → e.g. "posts:read, posts:update"
+
+// What can this user delegate to a new user they are creating?
+$grantableCap = $user->getGrantablePermissions($accountId);
+// → Collection keyed by permission_id
+```
+
+#### Account Cap Helper
+
+The `Account` model exposes the cap directly:
+
+```php
+$account = Account::find($accountId);
+
+// Returns Collection: [permission_id => access[] | null]
+$cap = $account->getGrantableCap();
+```
+
+This is used internally by `getGrantablePermissions()`, but you can call it directly if you need to display the tenant's permissions ceiling in an admin UI.
+
+#### REST API Endpoints (Built-in Controller)
+
+The `PermissionManagementController` provides ready-to-use endpoints:
+
+**Get what the authenticated actor can delegate**
+```
+GET /abac/grantable?account_id={accountId}
+```
+
+Response:
+```json
+[
+  { "id": "...", "name": "posts",   "type": "crud",   "grantable_access": ["read", "update"] },
+  { "id": "...", "name": "reports", "type": "on-off", "grantable_access": null }
+]
+```
+
+`grantable_access: null` means the actor may delegate this permission with **full** access. Use this endpoint to populate the "assign permissions" UI when creating or editing a sub-user.
+
+**Sync permissions to a user or role (with delegation cap guard)**
+```
+POST /abac/sync/{type}/{id}
+Content-Type: application/json
+
+{
+  "account_id": "{accountId}",
+  "permissions": [
+    { "id": "{permId}", "access": ["read", "update"], "grantable": false },
+    { "id": "{permId}", "access": null,               "grantable": true }
+  ]
+}
+```
+
+- `type` must be `user` or `role`.
+- `grantable: true` on an item means the target user may further delegate this permission.
+- The request is rejected with `403` if any permission/access exceeds the actor's cap.
+
+#### Complete Workflow Example
+
+```php
+// 1. Platform seeds account with its entitled permissions
+AssignedPermission::create([
+    'permission_id' => $postsPerm->id,
+    'assignee_id'   => $account->id,
+    'assignee_type' => 'account',
+    'account_id'    => null,
+    'access'        => null,   // full access
+    'grantable'     => true,
+]);
+
+// 2. Tenant admin (Tenant Zeus) creates a Manager user
+// Tenant Zeus can grant anything in the account cap
+$tenantAdmin = User::find($adminId); // has zeus_level='tenant' role for this account
+
+$managerPayload = [
+    ['id' => $postsPerm->id, 'access' => ['read', 'create', 'update'], 'grantable' => true],
+    //     ↑ grantable:true means Manager can further delegate these to their own sub-users
+];
+
+$tenantAdmin->authorizePermissionDelegation($managerPayload, $account->id); // passes — Tenant Zeus
+
+foreach ($managerPayload as $item) {
+    AssignedPermission::create([
+        'permission_id' => $item['id'],
+        'assignee_id'   => $managerId,
+        'assignee_type' => 'user',
+        'account_id'    => $account->id,
+        'access'        => $item['access'],
+        'grantable'     => $item['grantable'],
+    ]);
+}
+
+// 3. Manager creates a Staff user
+// Manager only holds read+create+update, so they cannot grant delete
+$manager = User::find($managerId);
+
+$staffPayload = [
+    ['id' => $postsPerm->id, 'access' => ['read'], 'grantable' => false],
+];
+
+$manager->authorizePermissionDelegation($staffPayload, $account->id); // passes
+
+// This would THROW — manager doesn't hold delete
+$manager->authorizePermissionDelegation([
+    ['id' => $postsPerm->id, 'access' => ['read', 'delete']]
+], $account->id);
+// → AuthorizationException: You cannot delegate [delete] for permission [...]
+```
+
+---
 
 ### 3. Check Permissions
 
@@ -635,6 +889,13 @@ This will create:
 ## Testing
 
 Run `vendor/bin/phpunit` to execute the test suite.
+
+> **LLM / AI Agent Note:** When using this package in code generation contexts:
+> - Call `$user->getGrantablePermissions($accountId)` to determine the bounded set of permissions a user may assign when creating another user in the same account.
+> - Call `$user->authorizePermissionDelegation($payload, $accountId)` before writing any `AssignedPermission` records on behalf of a user to enforce the delegation cap automatically.
+> - Never set `grantable = true` on an account-level `AssignedPermission` unless you intend that permission to be redistributable within the tenant.
+> - `getAllPermissions()` returns what the user **has**; `getGrantablePermissions()` returns what the user **can give**. These are intentionally separate.
+> - Zeus checks: use `$user->isSystemZeus()`, `$user->isTenantZeus($accountId)`, and `$user->isZeus()` as guards before expensive queries.
 
 ## License
 
