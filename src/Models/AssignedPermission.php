@@ -2,12 +2,12 @@
 
 namespace AbacPermissions\Models;
 
-use Illuminate\Database\Eloquent\Relations\MorphPivot;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class AssignedPermission extends MorphPivot
+class AssignedPermission extends Model
 {
     use HasUlids;
 
@@ -130,10 +130,14 @@ class AssignedPermission extends MorphPivot
     }
 
     /**
-     * Get the expanded permissions based on access restrictions
+     * Get the expanded permissions based on access restrictions.
+     * Safe to call regardless of whether 'permission' was eager-loaded.
      */
     public function getExpandedPermissions(): array
     {
+        // Defensive: load the permission relationship if it wasn't eager-loaded
+        $this->loadMissing('permission');
+
         $permission = $this->permission;
 
         if (!$permission) {
