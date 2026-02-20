@@ -210,11 +210,18 @@ trait HasAbac
                 ->map(fn ($p) => null); // null = full access on every permission
         }
 
-        // --- 2. Tenant Zeus: fully uncapped within their tenant -------------------
+        // --- Fetch Account Cap ----------------------------------------------------
+        $accountCap = collect();
+        if ($accountId) {
+            $account = \AbacPermissions\Models\Account::find($accountId);
+            if ($account) {
+                $accountCap = $account->getGrantableCap();
+            }
+        }
+
+        // --- 2. Tenant Zeus: fully capped by Account Cap --------------------------
         if ($accountId && $this->isTenantZeus($accountId)) {
-            return \AbacPermissions\Models\Permission::all()
-                ->keyBy('id')
-                ->map(fn ($p) => null);
+            return $accountCap;
         }
 
         // --- 3. Regular user: delegate from their own holdings --------------------
@@ -245,10 +252,37 @@ trait HasAbac
         ->keyBy('permission_id');
 
         // Map to [ permission_id => access[] | null ]
-        // Multiple assignments for the same permission (e.g. role + direct) are
-        // already collapsed by keyBy — the last one wins; you could union them
-        // here if needed, but for the common case keyBy is sufficient.
-        return $userAssignments->map(fn ($ap) => $ap->access);
+        $userCap = $userAssignments->map(fn ($ap) => $ap->access);
+
+        // Intersect User Cap with Account Cap
+        $finalCap = collect();
+
+        foreach ($userCap as $permId => $uAccess) {
+            if (! $accountCap->has($permId)) {
+                // Account cannot delegate this permission, so user cannot either.
+                continue;
+            }
+
+            $aAccess = $accountCap[$permId];
+
+            if ($aAccess === null) {
+                $finalCap[$permId] = $uAccess;
+                continue;
+            }
+
+            if ($uAccess === null) {
+                $finalCap[$permId] = $aAccess;
+                continue;
+            }
+
+            $intersected = array_values(array_intersect($uAccess, $aAccess));
+
+            if (!empty($intersected)) {
+                $finalCap[$permId] = $intersected;
+            }
+        }
+
+        return $finalCap;
     }
 
 

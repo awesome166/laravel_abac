@@ -27,6 +27,7 @@ class DelegationTest extends TestCase
     private Permission $postsPerm;
     private Permission $reportsPerm;
     private Permission $settingsPerm;
+    private Permission $billingPerm;
 
     protected function setUp(): void
     {
@@ -36,6 +37,12 @@ class DelegationTest extends TestCase
         $this->postsPerm    = Permission::create(['name' => 'posts',    'type' => 'crud']);
         $this->reportsPerm  = Permission::create(['name' => 'reports',  'type' => 'on-off']);
         $this->settingsPerm = Permission::create(['name' => 'settings', 'type' => 'crud']);
+        $this->billingPerm  = Permission::create(['name' => 'billing',  'type' => 'crud']);
+
+        // Give account grantable permissions so users/Tenant Zeus can delegate them by default
+        $this->account->assignedPermissions()->create(['permission_id' => $this->postsPerm->id, 'grantable' => true, 'access' => null]);
+        $this->account->assignedPermissions()->create(['permission_id' => $this->reportsPerm->id, 'grantable' => true, 'access' => null]);
+        $this->account->assignedPermissions()->create(['permission_id' => $this->settingsPerm->id, 'grantable' => true, 'access' => null]);
 
         app(TenantContext::class)->setAccount($this->account);
     }
@@ -116,6 +123,36 @@ class DelegationTest extends TestCase
         $this->assertNotContains('delete', $cap[$this->postsPerm->id] ?? []);
     }
 
+    /** @test */
+    public function user_cannot_delegate_beyond_account_cap()
+    {
+        $user = TestUser::create(['email' => 'user_super@acme.com']);
+        $this->grantToUser($user, $this->postsPerm, ['read', 'update']); // In cap
+        $this->grantToUser($user, $this->billingPerm, ['read', 'update']); // NOT in cap
+
+        $cap = $user->getGrantablePermissions($this->account->id);
+
+        $this->assertTrue($cap->has($this->postsPerm->id));
+        $this->assertFalse($cap->has($this->billingPerm->id)); // user holds it, but account doesn't!
+    }
+
+    /** @test */
+    public function user_access_intercepts_with_account_cap()
+    {
+        $user = TestUser::create(['email' => 'user_intersect@acme.com']);
+        $this->grantToUser($user, $this->settingsPerm, null); // user has full settings
+
+        // Restrict the account's settings cap to only 'read'
+        $this->account->assignedPermissions()->where('permission_id', $this->settingsPerm->id)->update([
+            'access' => ['read']
+        ]);
+
+        $cap = $user->getGrantablePermissions($this->account->id);
+
+        $this->assertTrue($cap->has($this->settingsPerm->id));
+        $this->assertEquals(['read'], $cap[$this->settingsPerm->id]); // capped by account!
+    }
+
     // =========================================================================
     // SCENARIO 2: Role-based permissions feed the delegation cap
     // =========================================================================
@@ -189,7 +226,7 @@ class DelegationTest extends TestCase
     // =========================================================================
 
     /** @test */
-    public function tenant_zeus_can_delegate_any_permission()
+    public function tenant_zeus_can_delegate_account_capped_permissions()
     {
         $tenantZeus = $this->makeTenantZeus();
 
@@ -199,10 +236,13 @@ class DelegationTest extends TestCase
         $this->assertTrue($cap->has($this->reportsPerm->id),  'Tenant Zeus: reports');
         $this->assertTrue($cap->has($this->settingsPerm->id), 'Tenant Zeus: settings');
         $this->assertNull($cap[$this->postsPerm->id], 'Tenant Zeus gets full (null) access');
+
+        // Cannot delegate what the account is not granted
+        $this->assertFalse($cap->has($this->billingPerm->id), 'Tenant Zeus: billing not in account cap');
     }
 
     /** @test */
-    public function tenant_zeus_delegation_does_not_throw_for_any_permission()
+    public function tenant_zeus_delegation_respects_account_cap()
     {
         $tenantZeus = $this->makeTenantZeus();
 
@@ -214,6 +254,11 @@ class DelegationTest extends TestCase
 
         $tenantZeus->authorizePermissionDelegation($payload, $this->account->id);
         $this->assertTrue(true);
+
+        $this->expectException(AuthorizationException::class);
+        $tenantZeus->authorizePermissionDelegation([
+            ['id' => $this->billingPerm->id, 'access' => ['read']]
+        ], $this->account->id);
     }
 
     // =========================================================================
