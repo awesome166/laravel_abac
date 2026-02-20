@@ -166,7 +166,8 @@ class AssignedPermission extends MorphPivot
             return [];
         }
 
-        $access = $this->access; // cast to array via $casts
+        $access = is_array($this->access) ? $this->access : (array) $this->access;
+        $access = array_filter($access); // remove nulls/empty strings
 
         // Handle on-off type permissions
         if ($permission->type === 'on-off') {
