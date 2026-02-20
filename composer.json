@@ -1,7 +1,7 @@
 {
   "name": "abacpermissions/abacpermissions",
   "description": "SaaS multi-tenancy and RBAC/ABAC (Attribute-Based Access Control) system for Laravel",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "keywords": [
     "laravel",
     "abac",
