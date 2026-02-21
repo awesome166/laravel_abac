@@ -141,9 +141,9 @@ trait HasAbac
 
     /**
      * Get all permissions assigned to the user (via roles + direct grants).
-     * Returns a comma-separated string of expanded permission names.
+     * Returns an array of expanded permission names.
      */
-    public function getAllPermissions(): string
+    public function getAllPermissions(): array
     {
         // Use the already-loaded collection if available (avoids extra query
         // when User has $with = ['roles'])
@@ -176,7 +176,7 @@ trait HasAbac
             return $assignment->getExpandedPermissions();
         });
 
-        return $expandedPermissions->unique()->sort()->implode(', ');
+        return $expandedPermissions->unique()->sort()->values()->toArray();
     }
 
     /**
