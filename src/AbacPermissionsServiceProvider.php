@@ -41,8 +41,7 @@ class AbacPermissionsServiceProvider extends ServiceProvider
         // ABAC Engine (Service)
         $this->app->singleton('abacpermissions', function ($app) {
             return new AbacEngine(
-                $app->make(TenantContext::class),
-                $app['cache.store']
+                $app->make(TenantContext::class)
             );
         });
 

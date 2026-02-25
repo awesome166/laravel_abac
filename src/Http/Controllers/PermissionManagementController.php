@@ -7,10 +7,7 @@ use Illuminate\Routing\Controller;
 use AbacPermissions\Models\Permission;
 use AbacPermissions\Models\Role;
 use AbacPermissions\Models\Account;
-use AbacPermissions\Tests\Integration\TestUser; // Fallback for test env?
-// In Real app, User model is configurable.
 use Illuminate\Support\Facades\Config;
-use Illuminate\Auth\Access\AuthorizationException;
 
 class PermissionManagementController extends Controller
 {
@@ -99,9 +96,20 @@ class PermissionManagementController extends Controller
         // -------------------------------------------------------------------------
 
         // Delete existing assignments for this subject
-        \AbacPermissions\Models\AssignedPermission::where('assignee_id', $id)
-            ->where('assignee_type', $type)
-            ->delete();
+        $deleteQuery = \AbacPermissions\Models\AssignedPermission::where('assignee_id', $id)
+            ->where('assignee_type', $type);
+
+        if ($type === 'user') {
+            if ($accountId === null) {
+                $deleteQuery->whereNull('account_id');
+            } else {
+                $deleteQuery->where('account_id', $accountId);
+            }
+        } else {
+            $deleteQuery->whereNull('account_id');
+        }
+
+        $deleteQuery->delete();
 
         // Create new assignments
         foreach ($input as $item) {

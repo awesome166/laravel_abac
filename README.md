@@ -1,6 +1,6 @@
 # AbacPermissions (abacpermissions/abacpermissions)
 
-A comprehensive SaaS multi-tenancy and ABAC access control package for Laravel. Features row-level tenancy, database-backed roles/permissions, Zeus (System/Tenant) bypass capability, and automatic caching.
+A comprehensive ABAC/RBAC access control package for Laravel that supports both SaaS multi-tenancy and single-application deployments. Features row-level tenancy, database-backed roles/permissions, Zeus (System/Tenant) bypass capability, and automatic caching.
 
 ## Features
 
@@ -34,7 +34,15 @@ Publish config:
 php artisan vendor:publish --tag=abacpermissions-config
 ```
 
-Config allows toggling tenancy (`tenancy_enabled`) and customizing table names.
+Config allows toggling tenancy/SaaS mode and customizing table names.
+
+Environment toggles:
+
+```env
+ABACPERMISSIONS_TENANCY_ENABLED=true
+# alias:
+ABACPERMISSIONS_SAAS_MODE=true
+```
 
 ## Usage
 
@@ -43,7 +51,7 @@ Config allows toggling tenancy (`tenancy_enabled`) and customizing table names.
 The `DetectAbacTenant` middleware automatically detects the current tenant for each request when multi-tenancy is enabled.
 
 **How it works:**
-- Checks if tenancy is enabled via `config('abacpermissions.tenancy_enabled')`.
+- Checks if tenancy is enabled via `config('abacpermissions.tenancy_enabled')` (or `saas_mode` alias).
 - Looks for the `X-Account-ID` (or `X-Account-Slug`) header in the request.
 - If present, finds the corresponding `Account` and sets it in the `TenantContext`.
 - **System Zeus Bypass**: If no account header is provided and the user is System Zeus, they are allowed to proceed without an account context and will see ALL data from ALL tenants.

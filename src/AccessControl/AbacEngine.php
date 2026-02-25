@@ -4,8 +4,6 @@ namespace AbacPermissions\AccessControl;
 
 use Illuminate\Support\Facades\Cache;
 use AbacPermissions\Tenancy\TenantContext;
-use AbacPermissions\Models\Role;
-use AbacPermissions\Models\Permission;
 
 class AbacEngine
 {
@@ -27,20 +25,35 @@ class AbacEngine
         if (!$user) return [];
 
         $accountId = $this->config->getAccountId();
-        $version = Cache::get('abacpermissions_version', 1);
-        $cacheKey = "abacpermissions_{$version}_perms_{$user->id}_" . ($accountId ?? 'global');
+        $cacheKey = $this->makeCacheKey($user->id, $accountId);
+        $ttl = config('abacpermissions.cache.ttl', 3600);
 
-        $permissions = Cache::remember($cacheKey, config('abacpermissions.cache.ttl', 3600), function () use ($user, $accountId) {
-             return $this->resolvePermissions($user, $accountId);
-        });
+        if ($this->supportsTags()) {
+            $permissions = Cache::tags($this->userCacheTags($user->id))
+                ->remember($cacheKey, $ttl, function () use ($user, $accountId) {
+                    return $this->resolvePermissions($user, $accountId);
+                });
+        } else {
+            $permissions = Cache::remember($cacheKey, $ttl, function () use ($user, $accountId) {
+                return $this->resolvePermissions($user, $accountId);
+            });
+        }
 
         // Auto-recache if cache is empty (user requested this feature)
         if (empty($permissions)) {
-            Cache::forget($cacheKey);
+            if ($this->supportsTags()) {
+                Cache::tags($this->userCacheTags($user->id))->forget($cacheKey);
+            } else {
+                Cache::forget($cacheKey);
+            }
             $permissions = $this->resolvePermissions($user, $accountId);
 
             if (!empty($permissions)) {
-                Cache::put($cacheKey, $permissions, config('abacpermissions.cache.ttl', 3600));
+                if ($this->supportsTags()) {
+                    Cache::tags($this->userCacheTags($user->id))->put($cacheKey, $permissions, $ttl);
+                } else {
+                    Cache::put($cacheKey, $permissions, $ttl);
+                }
             }
         }
 
@@ -75,13 +88,16 @@ class AbacEngine
         // We will just clear the specific key if known, or assume the user logs out/cache expires.
         // Or better: Use Cache Tags if available: ['abac_user_{id}'].
 
-        if (Cache::supportsTags()) {
-            Cache::tags(["abacpermissions_user_{$user->id}"])->flush();
-        } else {
-             // Fallback: Clear current context
-             $key = "abacpermissions_perms_{$user->id}_" . ($accountId ?? 'global');
-             Cache::forget($key);
+        $this->bumpUserVersion($user->id);
+
+        if ($this->supportsTags()) {
+            Cache::tags($this->userCacheTags($user->id))->flush();
+            return;
         }
+
+        // Fallback: clear keys for the currently known contexts.
+        Cache::forget($this->makeCacheKey($user->id, $accountId));
+        Cache::forget($this->makeCacheKey($user->id, null));
     }
 
     protected function resolvePermissions($user, $accountId): array
@@ -136,5 +152,42 @@ class AbacEngine
         }
 
         return array_unique($allPermissions);
+    }
+
+    protected function supportsTags(): bool
+    {
+        return method_exists(Cache::getStore(), 'tags');
+    }
+
+    protected function makeCacheKey(string $userId, $accountId = null): string
+    {
+        $globalVersion = Cache::get('abacpermissions_version', 1);
+        $userVersion = Cache::get($this->userVersionKey($userId), 1);
+        $prefix = config('abacpermissions.cache.key_prefix', 'abacpermissions_');
+        $scope = $accountId ?? 'global';
+
+        return "{$prefix}{$globalVersion}_u{$userVersion}_perms_{$userId}_{$scope}";
+    }
+
+    protected function userCacheTags(string $userId): array
+    {
+        return ["abacpermissions_user_{$userId}"];
+    }
+
+    protected function userVersionKey(string $userId): string
+    {
+        return "abacpermissions_user_version_{$userId}";
+    }
+
+    protected function bumpUserVersion(string $userId): void
+    {
+        $key = $this->userVersionKey($userId);
+
+        if (!Cache::has($key)) {
+            Cache::forever($key, 2);
+            return;
+        }
+
+        Cache::increment($key);
     }
 }

@@ -10,7 +10,18 @@ return [
     | comprehensive ABAC/RBAC system only.
     |
     */
-    'tenancy_enabled' => true,
+    'tenancy_enabled' => env('ABACPERMISSIONS_TENANCY_ENABLED', env('ABACPERMISSIONS_SAAS_MODE', true)),
+
+    /*
+    |--------------------------------------------------------------------------
+    | SaaS Mode (Alias for Tenancy Toggle)
+    |--------------------------------------------------------------------------
+    |
+    | When disabled, tenant isolation features are turned off and the package
+    | can be used as a single-application ABAC/RBAC system.
+    |
+    */
+    'saas_mode' => env('ABACPERMISSIONS_SAAS_MODE', env('ABACPERMISSIONS_TENANCY_ENABLED', true)),
 
     /*
     |--------------------------------------------------------------------------

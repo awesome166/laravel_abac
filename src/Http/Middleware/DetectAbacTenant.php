@@ -10,7 +10,9 @@ class DetectAbacTenant
 {
     public function handle($request, Closure $next)
     {
-        if (!config('abacpermissions.tenancy_enabled')) {
+        $tenancyEnabled = config('abacpermissions.tenancy_enabled', config('abacpermissions.saas_mode', true));
+
+        if (!$tenancyEnabled) {
             return $next($request);
         }
 

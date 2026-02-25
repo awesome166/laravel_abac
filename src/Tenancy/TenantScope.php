@@ -11,7 +11,8 @@ class TenantScope implements Scope
 {
     public function apply(Builder $builder, Model $model)
     {
-        if (!config('abacpermissions.tenancy_enabled', true)) {
+        $tenancyEnabled = config('abacpermissions.tenancy_enabled', config('abacpermissions.saas_mode', true));
+        if (!$tenancyEnabled) {
             return;
         }
 
