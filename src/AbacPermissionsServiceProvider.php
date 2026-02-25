@@ -16,6 +16,9 @@ class AbacPermissionsServiceProvider extends ServiceProvider
         ], 'abacpermissions-config');
 
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        if (config('abacpermissions.routes.enabled', true)) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/abacpermissions.php');
+        }
 
         // Observers
         \AbacPermissions\Models\Permission::observe(\AbacPermissions\Observers\PermissionObserver::class);

@@ -42,9 +42,23 @@ Environment toggles:
 ABACPERMISSIONS_TENANCY_ENABLED=true
 # alias:
 ABACPERMISSIONS_SAAS_MODE=true
+ABACPERMISSIONS_ROUTES_ENABLED=true
+ABACPERMISSIONS_ROUTE_PREFIX=abac
 ```
 
 ## Usage
+
+### Zero-Setup Defaults
+
+Out of the box, the package now:
+- Registers built-in ABAC management routes (`/abac/*`) automatically.
+- Applies tenant detection to package routes via middleware alias (`abac.tenant`).
+- Works with your existing auth user model without requiring `HasAbac` methods for core package endpoints.
+
+You can disable built-in routes via:
+```env
+ABACPERMISSIONS_ROUTES_ENABLED=false
+```
 
 ### Middleware: DetectAbacTenant
 
@@ -73,16 +87,6 @@ if (!$account) {
 
 **Usage:**
 
-Register the middleware in your `app/Http/Kernel.php`:
-```php
-protected $middlewareGroups = [
-    'web' => [
-        // ...existing middleware...
-        \AbacPermissions\Http\Middleware\DetectAbacTenant::class,
-    ],
-];
-```
-
 Send the `X-Account-ID` (preferred) or `X-Account-Slug` header with each request to identify the tenant:
 ```
 X-Account-ID: 1
@@ -90,7 +94,9 @@ X-Account-ID: 1
 
 ### 1. Setup Models
 
-Add `HasAbac` trait to your User model:
+`HasAbac` is optional. You can use the package without adding trait methods to your User model.
+
+If you want convenience helpers directly on the User model, add `HasAbac`:
 ```php
 class User extends Authenticatable {
     use \AbacPermissions\Traits\HasAbac;
@@ -313,7 +319,11 @@ No account-level seeding required. The `grantable` column exists in the DB but i
 
 #### Getting What a User Can Delegate
 
-Call `getGrantablePermissions($accountId)` on any user that uses `HasAbac`.
+Call `getGrantablePermissions($accountId)` on any user that uses `HasAbac`, or call it via facade:
+
+```php
+\AbacPermissions\Facades\AbacPermissions::getGrantablePermissions(auth()->user(), $accountId);
+```
 
 Returns a **Collection keyed by `permission_id`**, value is `access[]` or `null` (null = full access for that permission).
 

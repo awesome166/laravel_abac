@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Scope;
 use AbacPermissions\Tenancy\TenantContext;
+use AbacPermissions\Facades\AbacPermissions;
 
 class TenantScope implements Scope
 {
@@ -27,7 +28,7 @@ class TenantScope implements Scope
 
             // System Zeus users can access all data regardless of tenant
             // Uses efficient database query with request-level caching to avoid N+1 queries
-            if ($user && method_exists($user, 'isSystemZeus') && $user->isSystemZeus()) {
+            if ($user && AbacPermissions::isSystemZeus($user)) {
                 // ZEUS OVERRIDE: Do not apply any scope. Return all data.
                 return;
             }

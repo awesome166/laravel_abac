@@ -6,7 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use AbacPermissions\Models\Permission;
 use AbacPermissions\Models\Role;
-use AbacPermissions\Models\Account;
+use AbacPermissions\Models\AssignedPermission;
+use AbacPermissions\Facades\AbacPermissions;
 use Illuminate\Support\Facades\Config;
 
 class PermissionManagementController extends Controller
@@ -38,39 +39,46 @@ class PermissionManagementController extends Controller
      */
     public function getAssigned(Request $request, $type, $id)
     {
-        $subject = $this->resolveSubject($type, $id);
+        $this->resolveSubject($type, $id);
+        $accountId = $request->query('account_id');
 
-        $permissions = $subject->permissions()->get()->map(function ($perm) {
+        $permissions = AssignedPermission::query()
+            ->where('assignee_type', $type)
+            ->where('assignee_id', $id)
+            ->when($type === 'user', function ($query) use ($accountId) {
+                if ($accountId === null) {
+                    return $query->whereNull('account_id');
+                }
 
-            // Decode pivot access
-            $access = null;
-            if ($perm->pivot && $perm->pivot->access) {
-                // Should use the logic we standardized: array of strings.
-                $decoded = is_string($perm->pivot->access)
-                         ? json_decode($perm->pivot->access, true)
-                         : $perm->pivot->access;
-                if (is_string($decoded)) $decoded = json_decode($decoded, true);
-                $access = $decoded;
-            }
+                return $query->where('account_id', $accountId);
+            }, function ($query) {
+                return $query->whereNull('account_id');
+            })
+            ->with('permission')
+            ->get()
+            ->map(function ($assignment) {
+                $perm = $assignment->permission;
+                if (!$perm) {
+                    return null;
+                }
 
-            // If access is null, default for CRUD is full access?
-            // Or should API return explicit full list to frontend?
-            // "NULL implies full access" is backend logic.
-            // Frontend prefers explicit list.
-            if ($perm->type === 'crud' && is_null($access)) {
-                 $access = ['create', 'read', 'update', 'delete'];
-            }
-            if ($perm->type === 'on-off' && is_null($access)) {
-                 $access = ['on'];
-            }
+                $access = is_array($assignment->access) ? $assignment->access : null;
+                if ($perm->type === 'crud' && is_null($access)) {
+                    $access = ['create', 'read', 'update', 'delete'];
+                }
+                if ($perm->type === 'on-off' && is_null($access)) {
+                    $access = ['on'];
+                }
 
-            return [
-                'id' => $perm->id,
-                'name' => $perm->name,
-                'type' => $perm->type,
-                'access' => $access
-            ];
-        });
+                return [
+                    'id' => $perm->id,
+                    'name' => $perm->name,
+                    'type' => $perm->type,
+                    'access' => $access,
+                ];
+            })
+            ->filter()
+            ->values();
 
         return response()->json($permissions);
     }
@@ -90,8 +98,8 @@ class PermissionManagementController extends Controller
 
         // --- Delegation cap guard ------------------------------------------------
         $actor = $request->user();
-        if ($actor && method_exists($actor, 'authorizePermissionDelegation')) {
-            $actor->authorizePermissionDelegation($input, $accountId);
+        if ($actor) {
+            AbacPermissions::authorizePermissionDelegation($actor, $input, $accountId);
         }
         // -------------------------------------------------------------------------
 
@@ -117,7 +125,7 @@ class PermissionManagementController extends Controller
             $access    = $item['access']    ?? null;
             $grantable = $item['grantable'] ?? false;
 
-            \AbacPermissions\Models\AssignedPermission::create([
+            AssignedPermission::create([
                 'permission_id' => $permId,
                 'assignee_id'   => $id,
                 'assignee_type' => $type,
@@ -161,12 +169,12 @@ class PermissionManagementController extends Controller
     {
         $actor = $request->user();
 
-        if (!$actor || !method_exists($actor, 'getGrantablePermissions')) {
+        if (!$actor) {
             return response()->json([]);
         }
 
         $accountId = $request->query('account_id');
-        $cap = $actor->getGrantablePermissions($accountId);
+        $cap = AbacPermissions::getGrantablePermissions($actor, $accountId);
 
         // Hydrate permission records so we can return name + type
         $permissionIds = $cap->keys()->toArray();
@@ -199,32 +207,7 @@ class PermissionManagementController extends Controller
             return response()->json([]);
         }
 
-        // Check for System Level Zeus
-        $isSystemZeus = $user->roles->contains(function($role) {
-            return $role->zeus_level === 'system';
-        });
-
-        if ($isSystemZeus) {
-            // Zeus sees all accounts
-            return Account::all();
-        }
-
-        // Regular users: Get accounts where they have a role or direct permission
-        // 1. Accounts via Roles
-        $roleAccountIds = $user->roles->pluck('account_id')->filter();
-
-        // 2. Accounts via Direct Permissions (AssignedPermission where account_id is set)
-        // We need to query AssignedPermission table directly or via relationship if it exists on User
-        // User hasMany AssignedPermission
-        $directAccountIds = \AbacPermissions\Models\AssignedPermission::query()
-            ->where('assignee_type', 'user')
-            ->where('assignee_id', $user->id)
-            ->whereNotNull('account_id')
-            ->pluck('account_id');
-
-        $allAccountIds = $roleAccountIds->merge($directAccountIds)->unique();
-
-        return Account::whereIn('id', $allAccountIds)->get();
+        return AbacPermissions::getAccessibleAccounts($user);
     }
 
     protected function resolveSubject($type, $id)

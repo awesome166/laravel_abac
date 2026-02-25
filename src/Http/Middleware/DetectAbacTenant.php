@@ -5,6 +5,7 @@ namespace AbacPermissions\Http\Middleware;
 use Closure;
 use AbacPermissions\Models\Account;
 use AbacPermissions\Tenancy\TenantContext;
+use AbacPermissions\Facades\AbacPermissions;
 
 class DetectAbacTenant
 {
@@ -37,7 +38,7 @@ class DetectAbacTenant
             // No explicit account header provided
             // Check if user is System Zeus - they can proceed without account context
             // System Zeus has access to all data across all tenants
-            if ($user && method_exists($user, 'isSystemZeus') && $user->isSystemZeus()) {
+            if ($user && AbacPermissions::isSystemZeus($user)) {
                 // Allow System Zeus to proceed without account context
                 // They will see all data via TenantScope override
                 return $next($request);

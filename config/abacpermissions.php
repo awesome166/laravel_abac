@@ -56,6 +56,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Package Routes
+    |--------------------------------------------------------------------------
+    |
+    | Built-in management routes for permissions, assignment sync, grantable
+    | lookups, and user account discovery.
+    |
+    */
+    'routes' => [
+        'enabled' => env('ABACPERMISSIONS_ROUTES_ENABLED', true),
+        'prefix' => env('ABACPERMISSIONS_ROUTE_PREFIX', 'abac'),
+        'middleware' => ['api', 'auth', 'abac.tenant'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |

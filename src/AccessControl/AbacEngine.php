@@ -3,6 +3,7 @@
 namespace AbacPermissions\AccessControl;
 
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use AbacPermissions\Tenancy\TenantContext;
 
 class AbacEngine
@@ -77,6 +78,205 @@ class AbacEngine
         return in_array($permission, $perms);
     }
 
+    public function isSystemZeus($user): bool
+    {
+        if (!$user || !isset($user->id)) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSystemZeus')) {
+            return (bool) $user->isSystemZeus();
+        }
+
+        $rolesTable = config('abacpermissions.tables.roles', 'roles');
+
+        return DB::table('role_user')
+            ->join($rolesTable, "{$rolesTable}.id", '=', 'role_user.role_id')
+            ->where('role_user.user_id', $user->id)
+            ->where("{$rolesTable}.zeus_level", 'system')
+            ->exists();
+    }
+
+    public function isTenantZeus($user, $accountId = null): bool
+    {
+        if (!$user || !isset($user->id) || $accountId === null) {
+            return false;
+        }
+
+        if (method_exists($user, 'isTenantZeus')) {
+            return (bool) $user->isTenantZeus($accountId);
+        }
+
+        $rolesTable = config('abacpermissions.tables.roles', 'roles');
+
+        return DB::table('role_user')
+            ->join($rolesTable, "{$rolesTable}.id", '=', 'role_user.role_id')
+            ->where('role_user.user_id', $user->id)
+            ->where("{$rolesTable}.zeus_level", 'tenant')
+            ->where("{$rolesTable}.account_id", $accountId)
+            ->exists();
+    }
+
+    public function getGrantablePermissions($user, $accountId = null): \Illuminate\Support\Collection
+    {
+        if (!$user || !isset($user->id)) {
+            return collect();
+        }
+
+        if (method_exists($user, 'getGrantablePermissions')) {
+            return $user->getGrantablePermissions($accountId);
+        }
+
+        if ($accountId === null) {
+            $accountId = $this->config->getAccountId();
+        }
+
+        if ($this->isSystemZeus($user)) {
+            return \AbacPermissions\Models\Permission::query()
+                ->get()
+                ->keyBy('id')
+                ->map(fn ($p) => null);
+        }
+
+        $accountCap = collect();
+        if ($accountId) {
+            $account = \AbacPermissions\Models\Account::find($accountId);
+            if ($account) {
+                $accountCap = $account->getGrantableCap();
+            }
+        }
+
+        if ($accountId && $this->isTenantZeus($user, $accountId)) {
+            return $accountCap;
+        }
+
+        if ($accountId === null) {
+            return collect();
+        }
+
+        $roleIds = $this->getApplicableRoleIds($user->id, $accountId);
+
+        $userAssignments = \AbacPermissions\Models\AssignedPermission::where(function ($query) use ($roleIds, $user, $accountId) {
+            $query->where(function ($q) use ($roleIds) {
+                $q->where('assignee_type', 'role')
+                    ->whereIn('assignee_id', $roleIds);
+            })
+            ->orWhere(function ($q) use ($user, $accountId) {
+                $q->where('assignee_type', 'user')
+                    ->where('assignee_id', $user->id)
+                    ->where(function ($inner) use ($accountId) {
+                        $inner->whereNull('account_id')
+                            ->orWhere('account_id', $accountId);
+                    });
+            });
+        })
+        ->get()
+        ->keyBy('permission_id');
+
+        $userCap = $userAssignments->map(fn ($ap) => $ap->access);
+        $finalCap = collect();
+
+        foreach ($userCap as $permId => $uAccess) {
+            if (! $accountCap->has($permId)) {
+                continue;
+            }
+
+            $aAccess = $accountCap[$permId];
+            if ($aAccess === null) {
+                $finalCap[$permId] = $uAccess;
+                continue;
+            }
+
+            if ($uAccess === null) {
+                $finalCap[$permId] = $aAccess;
+                continue;
+            }
+
+            $intersected = array_values(array_intersect($uAccess, $aAccess));
+            if (!empty($intersected)) {
+                $finalCap[$permId] = $intersected;
+            }
+        }
+
+        return $finalCap;
+    }
+
+    public function authorizePermissionDelegation($user, array $permissionsPayload, $accountId = null): void
+    {
+        if (!$user || !isset($user->id)) {
+            return;
+        }
+
+        if (method_exists($user, 'authorizePermissionDelegation')) {
+            $user->authorizePermissionDelegation($permissionsPayload, $accountId);
+            return;
+        }
+
+        if ($this->isSystemZeus($user)) {
+            return;
+        }
+
+        $cap = $this->getGrantablePermissions($user, $accountId);
+
+        foreach ($permissionsPayload as $item) {
+            $permId = $item['id'] ?? null;
+            $access = $item['access'] ?? null;
+
+            if (!$cap->has($permId)) {
+                throw new \Illuminate\Auth\Access\AuthorizationException(
+                    "You are not allowed to delegate permission [{$permId}]."
+                );
+            }
+
+            $capAccess = $cap[$permId];
+            if ($capAccess === null) {
+                continue;
+            }
+
+            if ($access === null) {
+                throw new \Illuminate\Auth\Access\AuthorizationException(
+                    "You cannot delegate full access for permission [{$permId}]. Allowed: " . implode(', ', $capAccess)
+                );
+            }
+
+            $denied = array_diff($access, $capAccess);
+            if (!empty($denied)) {
+                throw new \Illuminate\Auth\Access\AuthorizationException(
+                    "You cannot delegate [" . implode(', ', $denied) . "] for permission [{$permId}]. Allowed: " . implode(', ', $capAccess)
+                );
+            }
+        }
+    }
+
+    public function getAccessibleAccounts($user)
+    {
+        if (!$user || !isset($user->id)) {
+            return collect();
+        }
+
+        if ($this->isSystemZeus($user)) {
+            return \AbacPermissions\Models\Account::all();
+        }
+
+        $rolesTable = config('abacpermissions.tables.roles', 'roles');
+
+        $roleAccountIds = DB::table('role_user')
+            ->join($rolesTable, "{$rolesTable}.id", '=', 'role_user.role_id')
+            ->where('role_user.user_id', $user->id)
+            ->whereNotNull("{$rolesTable}.account_id")
+            ->pluck("{$rolesTable}.account_id");
+
+        $directAccountIds = \AbacPermissions\Models\AssignedPermission::query()
+            ->where('assignee_type', 'user')
+            ->where('assignee_id', $user->id)
+            ->whereNotNull('account_id')
+            ->pluck('account_id');
+
+        $allAccountIds = $roleAccountIds->merge($directAccountIds)->unique();
+
+        return \AbacPermissions\Models\Account::whereIn('id', $allAccountIds)->get();
+    }
+
     /**
      * Clear cache for a user.
      */
@@ -104,30 +304,21 @@ class AbacEngine
     {
         $allPermissions = [];
         $isTenant = !is_null($accountId);
-
-        // 1. Get Assigned Roles
-        $roles = $user->roles ?? collect([]);
-
-        // Filter roles relevant to this account (Global + Tenant specific)
-        $applicableRoles = $roles->filter(function ($role) use ($accountId) {
-            return is_null($role->account_id) || $role->account_id == $accountId;
-        });
+        $roleIds = $this->getApplicableRoleIds($user->id, $accountId);
 
         // 2. Check for Zeus
         // System Zeus: Role with zeus_level='system'
-        if ($applicableRoles->contains(fn($r) => $r->isSystemZeus())) {
+        if ($this->isSystemZeus($user)) {
             return ['*']; // Full bypass
         }
 
         // Tenant Zeus: Role with zeus_level='tenant' AND currently in that tenant
-        if ($isTenant && $applicableRoles->contains(fn($r) => $r->isTenantZeus() && $r->account_id == $accountId)) {
+        if ($isTenant && $this->isTenantZeus($user, $accountId)) {
             return ['*']; // In this context, they have everything
         }
 
         // 3. Collect Permissions from Roles via AssignedPermission
-        $roleIds = $applicableRoles->pluck('id')->toArray();
-
-        if (!empty($roleIds)) {
+        if ($roleIds->isNotEmpty()) {
             $roleAssignments = \AbacPermissions\Models\AssignedPermission::query()
                 ->where('assignee_type', 'role')
                 ->whereIn('assignee_id', $roleIds)
@@ -152,6 +343,22 @@ class AbacEngine
         }
 
         return array_unique($allPermissions);
+    }
+
+    protected function getApplicableRoleIds($userId, $accountId): \Illuminate\Support\Collection
+    {
+        $rolesTable = config('abacpermissions.tables.roles', 'roles');
+
+        return DB::table('role_user')
+            ->join($rolesTable, "{$rolesTable}.id", '=', 'role_user.role_id')
+            ->where('role_user.user_id', $userId)
+            ->where(function ($query) use ($rolesTable, $accountId) {
+                $query->whereNull("{$rolesTable}.account_id");
+                if ($accountId !== null) {
+                    $query->orWhere("{$rolesTable}.account_id", $accountId);
+                }
+            })
+            ->pluck("{$rolesTable}.id");
     }
 
     protected function supportsTags(): bool
