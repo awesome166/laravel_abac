@@ -28,6 +28,12 @@ class AbacPermissionsServiceProvider extends ServiceProvider
         $router = $this->app['router'];
         $router->aliasMiddleware('abac.tenant', \AbacPermissions\Http\Middleware\DetectAbacTenant::class);
         $router->aliasMiddleware('abac.append', \AbacPermissions\Http\Middleware\AppendPermissions::class);
+
+        if (config('abacpermissions.middleware.auto_apply_tenant', false)) {
+            foreach (config('abacpermissions.middleware.auto_apply_groups', ['api']) as $group) {
+                $router->pushMiddlewareToGroup($group, \AbacPermissions\Http\Middleware\DetectAbacTenant::class);
+            }
+        }
     }
 
     public function register()

@@ -71,6 +71,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Middleware Auto-Apply
+    |--------------------------------------------------------------------------
+    |
+    | Optionally push tenant detection middleware into route groups
+    | automatically so no Kernel changes are needed.
+    |
+    */
+    'middleware' => [
+        'auto_apply_tenant' => env('ABACPERMISSIONS_AUTO_TENANT_MIDDLEWARE', false),
+        'auto_apply_groups' => ['api'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |
