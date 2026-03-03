@@ -282,6 +282,10 @@ class AbacEngine
      */
     public function flushCache($user, $accountId = null)
     {
+        if ($user && method_exists($user, 'clearPermissionCache')) {
+            $user->clearPermissionCache();
+        }
+
         // Ideally clear global AND tenant specific.
         // For simplicity, we might iterate or use tags if supported.
         // Without tags, we can't easily clear "all contexts" unless we know them.

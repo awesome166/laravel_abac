@@ -830,6 +830,67 @@ This will create:
 - `Tenant Owner` role (Tenant Zeus).
 - Users: `zeus@system.com`, `owner@demo.com`.
 
+### 7.1 Permission Seeding Generation Rules
+
+Use this format when generating permissions for any project:
+
+1. Use `type=crud` for resource-level permissions (for example `post`, `invoice`, `user`).
+2. Use `type=on-off` for binary feature flags (for example `dashboard.view`, `billing.export`).
+3. Keep permission names lowercase and stable; avoid renaming existing keys.
+4. Seed idempotently with `updateOrCreate()` so re-running seeders is safe.
+5. For CRUD resources, the runtime checks should target expanded actions:
+   `resource:create`, `resource:read`, `resource:update`, `resource:delete`.
+
+Example seeder template:
+
+```php
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use AbacPermissions\Models\Permission;
+
+class PermissionSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $crudResources = [
+            'post',
+            'comment',
+            'category',
+            'tag',
+        ];
+
+        $featureFlags = [
+            'dashboard.view',
+            'analytics.view',
+            'billing.export',
+        ];
+
+        foreach ($crudResources as $resource) {
+            Permission::updateOrCreate(
+                ['name' => $resource],
+                [
+                    'type' => 'crud',
+                    'description' => ucfirst($resource) . ' management',
+                ]
+            );
+        }
+
+        foreach ($featureFlags as $flag) {
+            Permission::updateOrCreate(
+                ['name' => $flag],
+                [
+                    'type' => 'on-off',
+                    'description' => ucfirst(str_replace('.', ' ', $flag)),
+                ]
+            );
+        }
+    }
+}
+```
+
 ## Testing
 
 Run `vendor/bin/phpunit` to execute the test suite.
@@ -841,6 +902,10 @@ Run `vendor/bin/phpunit` to execute the test suite.
 > - `getAllPermissions()` = what the user **has** (for auth checks). `getGrantablePermissions()` = what the user **can give to others**. These are intentionally separate.
 > - Zeus checks: use `$user->isSystemZeus()`, `$user->isTenantZeus($accountId)`, `$user->isZeus()` as early guards before expensive queries.
 > - System Zeus and Tenant Zeus both return all permissions from `getGrantablePermissions()` and are never blocked by `authorizePermissionDelegation()`.
+> - Request-level permission cache invalidation is built into `HasAbac` now. Do **not** create a custom cache-clearing trait unless you need custom behavior.
+> - After manual role/permission writes (outside package controllers), call `\AbacPermissions\Facades\AbacPermissions::flushCache($user)` for each affected user.
+> - Account/role/user permission updates on `AssignedPermission` are automatically observed by the package and will invalidate affected users' cache keys.
+> - If you need to clear only request-level cache on a loaded user instance, use `$user->clearPermissionCache()` (provided by `HasAbac`).
 
 ## License
 

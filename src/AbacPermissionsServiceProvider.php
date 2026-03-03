@@ -23,6 +23,7 @@ class AbacPermissionsServiceProvider extends ServiceProvider
         // Observers
         \AbacPermissions\Models\Permission::observe(\AbacPermissions\Observers\PermissionObserver::class);
         \AbacPermissions\Models\Role::observe(\AbacPermissions\Observers\RoleObserver::class);
+        \AbacPermissions\Models\AssignedPermission::observe(\AbacPermissions\Observers\AssignedPermissionObserver::class);
 
         // Register Middleware alias
         $router = $this->app['router'];

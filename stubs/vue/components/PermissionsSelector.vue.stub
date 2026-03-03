@@ -1,0 +1,242 @@
+<template>
+  <div class="permissions-selector">
+    <div v-for="perm in sortedPermissions" :key="perm.id" class="permission-row">
+      <div class="permission-main">
+        <label>
+          <input
+            type="checkbox"
+            :checked="isEnabled(perm.id)"
+            @change="togglePermission(perm)"
+          >
+          <span>{{ perm.name }}</span>
+          <small class="type-pill">{{ perm.type }}</small>
+        </label>
+      </div>
+
+      <div v-if="isEnabled(perm.id)" class="operations">
+        <label class="op-item op-all">
+          <input
+            type="checkbox"
+            :checked="isAllSelected(perm)"
+            @change="toggleAllOperations(perm)"
+          >
+          <span>All operations</span>
+        </label>
+
+        <label
+          v-for="op in availableActions(perm)"
+          :key="`${perm.id}-${op}`"
+          class="op-item"
+        >
+          <input
+            type="checkbox"
+            :checked="isOperationSelected(perm.id, op)"
+            @change="toggleOperation(perm, op)"
+          >
+          <span>{{ op }}</span>
+        </label>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+
+type PermissionItem = {
+  id: string;
+  name: string;
+  type: 'crud' | 'on-off' | string;
+  available_actions?: string[];
+};
+
+type SelectionItem = {
+  id: string;
+  access: string[] | null;
+  grantable?: boolean;
+};
+
+const OPERATION_ORDER: Record<string, number> = {
+  create: 1,
+  read: 2,
+  update: 3,
+  delete: 4,
+  on: 1,
+  off: 2,
+};
+
+const props = withDefaults(defineProps<{
+  permissions: PermissionItem[];
+  modelValue: SelectionItem[];
+}>(), {
+  permissions: () => [],
+  modelValue: () => [],
+});
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: SelectionItem[]): void;
+}>();
+
+const sortedPermissions = computed(() => {
+  return [...props.permissions].sort((a, b) => {
+    const aParts = a.name.split(':');
+    const bParts = b.name.split(':');
+
+    const aResource = aParts[0]?.toLowerCase() ?? '';
+    const bResource = bParts[0]?.toLowerCase() ?? '';
+
+    if (aResource !== bResource) {
+      return aResource.localeCompare(bResource);
+    }
+
+    const aAction = aParts[1]?.toLowerCase() ?? '';
+    const bAction = bParts[1]?.toLowerCase() ?? '';
+
+    const aOrder = OPERATION_ORDER[aAction] ?? 0;
+    const bOrder = OPERATION_ORDER[bAction] ?? 0;
+
+    if (aOrder !== bOrder) {
+      return aOrder - bOrder;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+});
+
+function availableActions(permission: PermissionItem): string[] {
+  const actions = permission.available_actions?.length
+    ? [...permission.available_actions]
+    : permission.type === 'crud'
+      ? ['create', 'read', 'update', 'delete']
+      : permission.type === 'on-off'
+        ? ['on', 'off']
+        : [];
+
+  return actions.sort((a, b) => {
+    const aOrder = OPERATION_ORDER[a] ?? 999;
+    const bOrder = OPERATION_ORDER[b] ?? 999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a.localeCompare(b);
+  });
+}
+
+function isEnabled(permissionId: string): boolean {
+  return props.modelValue.some((item) => item.id === permissionId);
+}
+
+function getItem(permissionId: string): SelectionItem | undefined {
+  return props.modelValue.find((item) => item.id === permissionId);
+}
+
+function isOperationSelected(permissionId: string, operation: string): boolean {
+  const item = getItem(permissionId);
+  if (!item) return false;
+  if (item.access === null) return true;
+  return item.access.includes(operation);
+}
+
+function isAllSelected(permission: PermissionItem): boolean {
+  const item = getItem(permission.id);
+  if (!item) return false;
+  if (item.access === null) return true;
+
+  const actions = availableActions(permission);
+  return actions.length > 0 && actions.every((op) => item.access?.includes(op));
+}
+
+function togglePermission(permission: PermissionItem): void {
+  const exists = getItem(permission.id);
+
+  if (exists) {
+    emit('update:modelValue', props.modelValue.filter((item) => item.id !== permission.id));
+    return;
+  }
+
+  emit('update:modelValue', [
+    ...props.modelValue,
+    {
+      id: permission.id,
+      access: null,
+      grantable: false,
+    },
+  ]);
+}
+
+function toggleAllOperations(permission: PermissionItem): void {
+  const actions = availableActions(permission);
+  const currentlyAll = isAllSelected(permission);
+
+  const updated = props.modelValue.map((item) => {
+    if (item.id !== permission.id) return item;
+    return {
+      ...item,
+      access: currentlyAll ? [] : [...actions],
+    };
+  });
+
+  emit('update:modelValue', updated);
+}
+
+function toggleOperation(permission: PermissionItem, operation: string): void {
+  const actions = availableActions(permission);
+
+  const updated = props.modelValue.map((item) => {
+    if (item.id !== permission.id) return item;
+
+    const current = item.access === null ? [...actions] : [...item.access];
+    const hasOp = current.includes(operation);
+
+    const next = hasOp
+      ? current.filter((op) => op !== operation)
+      : [...current, operation];
+
+    return {
+      ...item,
+      access: next.length ? next : [],
+    };
+  });
+
+  emit('update:modelValue', updated);
+}
+</script>
+
+<style scoped>
+.permissions-selector {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.permission-row {
+  border: 1px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.permission-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.type-pill {
+  margin-left: 0.5rem;
+  color: #666;
+}
+
+.operations {
+  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.op-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.op-all {
+  font-weight: 600;
+}
+</style>

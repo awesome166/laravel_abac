@@ -1,0 +1,280 @@
+<template>
+  <section class="roles-page">
+    <header class="page-head">
+      <h1>Roles</h1>
+      <button type="button" @click="openCreateModal">New Role</button>
+    </header>
+
+    <table class="roles-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Zeus Level</th>
+          <th>Description</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="role in roles" :key="role.id">
+          <td>{{ role.name }}</td>
+          <td>{{ role.zeus_level || 'none' }}</td>
+          <td>{{ role.description || '-' }}</td>
+          <td class="actions">
+            <button type="button" @click="openEditModal(role)">Edit</button>
+            <button type="button" @click="openPermissionsModal(role)">Permissions</button>
+            <button type="button" class="danger" @click="removeRole(role.id)">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-if="showRoleModal" class="modal-backdrop" @click.self="closeRoleModal">
+      <div class="modal-card">
+        <h2>{{ editingRoleId ? 'Edit Role' : 'Create Role' }}</h2>
+
+        <form @submit.prevent="saveRole">
+          <label>
+            <span>Name</span>
+            <input v-model.trim="roleForm.name" required>
+          </label>
+
+          <label>
+            <span>Zeus level</span>
+            <select v-model="roleForm.zeus_level">
+              <option value="none">none</option>
+              <option value="tenant">tenant</option>
+              <option value="system">system</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Description</span>
+            <textarea v-model.trim="roleForm.description" rows="3"></textarea>
+          </label>
+
+          <div class="modal-actions">
+            <button type="button" @click="closeRoleModal">Cancel</button>
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="showPermissionsModal" class="modal-backdrop" @click.self="closePermissionsModal">
+      <div class="modal-card modal-wide">
+        <h2>Role Permissions: {{ activeRole?.name }}</h2>
+
+        <PermissionsSelector
+          v-model="selectedPermissions"
+          :permissions="availablePermissions"
+        />
+
+        <div class="modal-actions">
+          <button type="button" @click="closePermissionsModal">Cancel</button>
+          <button type="button" @click="savePermissions">Save Permissions</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue';
+import axios from 'axios';
+import PermissionsSelector from '../components/PermissionsSelector.vue';
+
+type RoleItem = {
+  id: string;
+  name: string;
+  zeus_level: 'none' | 'tenant' | 'system';
+  description: string | null;
+};
+
+type PermissionItem = {
+  id: string;
+  name: string;
+  type: string;
+  available_actions?: string[];
+};
+
+type SelectionItem = {
+  id: string;
+  access: string[] | null;
+  grantable?: boolean;
+};
+
+// Replace with your own role CRUD endpoints if needed.
+const ROLE_API_BASE = '/api/roles';
+
+const roles = ref<RoleItem[]>([]);
+const availablePermissions = ref<PermissionItem[]>([]);
+const selectedPermissions = ref<SelectionItem[]>([]);
+
+const showRoleModal = ref(false);
+const showPermissionsModal = ref(false);
+const editingRoleId = ref<string | null>(null);
+const activeRole = ref<RoleItem | null>(null);
+
+const roleForm = reactive({
+  name: '',
+  zeus_level: 'none',
+  description: '',
+});
+
+onMounted(async () => {
+  await Promise.all([fetchRoles(), fetchAvailablePermissions()]);
+});
+
+async function fetchRoles(): Promise<void> {
+  const { data } = await axios.get<RoleItem[]>(ROLE_API_BASE);
+  roles.value = data;
+}
+
+async function fetchAvailablePermissions(): Promise<void> {
+  const { data } = await axios.get<PermissionItem[]>('/abac/permissions');
+  availablePermissions.value = data;
+}
+
+function resetRoleForm(): void {
+  roleForm.name = '';
+  roleForm.zeus_level = 'none';
+  roleForm.description = '';
+}
+
+function openCreateModal(): void {
+  editingRoleId.value = null;
+  resetRoleForm();
+  showRoleModal.value = true;
+}
+
+function openEditModal(role: RoleItem): void {
+  editingRoleId.value = role.id;
+  roleForm.name = role.name;
+  roleForm.zeus_level = role.zeus_level || 'none';
+  roleForm.description = role.description || '';
+  showRoleModal.value = true;
+}
+
+function closeRoleModal(): void {
+  showRoleModal.value = false;
+}
+
+async function saveRole(): Promise<void> {
+  const payload = {
+    name: roleForm.name,
+    zeus_level: roleForm.zeus_level,
+    description: roleForm.description || null,
+  };
+
+  if (editingRoleId.value) {
+    await axios.put(`${ROLE_API_BASE}/${editingRoleId.value}`, payload);
+  } else {
+    await axios.post(ROLE_API_BASE, payload);
+  }
+
+  await fetchRoles();
+  closeRoleModal();
+}
+
+async function removeRole(roleId: string): Promise<void> {
+  await axios.delete(`${ROLE_API_BASE}/${roleId}`);
+  await fetchRoles();
+}
+
+async function openPermissionsModal(role: RoleItem): Promise<void> {
+  activeRole.value = role;
+
+  const { data } = await axios.get<SelectionItem[]>(`/abac/assigned/role/${role.id}`);
+
+  selectedPermissions.value = data.map((item: any) => ({
+    id: item.id,
+    access: item.access,
+    grantable: item.grantable ?? false,
+  }));
+
+  showPermissionsModal.value = true;
+}
+
+function closePermissionsModal(): void {
+  showPermissionsModal.value = false;
+  activeRole.value = null;
+  selectedPermissions.value = [];
+}
+
+async function savePermissions(): Promise<void> {
+  if (!activeRole.value) return;
+
+  await axios.post(`/abac/sync/role/${activeRole.value.id}`, {
+    permissions: selectedPermissions.value,
+  });
+
+  closePermissionsModal();
+}
+</script>
+
+<style scoped>
+.roles-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.roles-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.roles-table th,
+.roles-table td {
+  border: 1px solid #ddd;
+  padding: 0.6rem;
+  text-align: left;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.danger {
+  color: #b30000;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.modal-card {
+  background: #fff;
+  width: min(640px, 100%);
+  border-radius: 10px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.modal-wide {
+  width: min(900px, 100%);
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+</style>

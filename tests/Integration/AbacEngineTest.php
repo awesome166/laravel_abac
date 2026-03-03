@@ -31,6 +31,7 @@ class AbacEngineTest extends TestCase
 
         // Should have everything
         $this->assertTrue(AbacPermissions::hasPermission($user, 'nuclear:launch'));
+        $this->assertSame(['*'], $user->getAllPermissions());
     }
 
     /** @test */

@@ -5,7 +5,6 @@ namespace AbacPermissions\Traits;
 use AbacPermissions\Models\Role;
 use AbacPermissions\Models\Permission;
 use AbacPermissions\Models\Account;
-use Illuminate\Support\Facades\Cache;
 
 trait HasAbac
 {
@@ -83,15 +82,15 @@ trait HasAbac
         // Cache for the request lifecycle to avoid N+1 queries
         $cacheKey = 'is_system_zeus_' . $this->id;
 
-        if (!request()->attributes->has($cacheKey)) {
+        if (!$this->requestHasAttribute($cacheKey)) {
             $isZeus = $this->roles()
                 ->where('zeus_level', 'system')
                 ->exists();
 
-            request()->attributes->set($cacheKey, $isZeus);
+            $this->setRequestAttribute($cacheKey, $isZeus);
         }
 
-        return request()->attributes->get($cacheKey);
+        return (bool) $this->getRequestAttribute($cacheKey, false);
     }
 
     /**
@@ -116,16 +115,17 @@ trait HasAbac
         // Cache for the request lifecycle
         $cacheKey = 'is_tenant_zeus_' . $this->id . '_' . $accountId;
 
-        if (!request()->attributes->has($cacheKey)) {
+        if (!$this->requestHasAttribute($cacheKey)) {
             $isZeus = $this->roles()
                 ->where('zeus_level', 'tenant')
                 ->where('account_id', $accountId)
                 ->exists();
 
-            request()->attributes->set($cacheKey, $isZeus);
+            $this->setRequestAttribute($cacheKey, $isZeus);
+            $this->rememberRequestKey($this->tenantZeusKeyRegistry(), $cacheKey);
         }
 
-        return request()->attributes->get($cacheKey);
+        return (bool) $this->getRequestAttribute($cacheKey, false);
     }
 
     /**
@@ -145,13 +145,26 @@ trait HasAbac
      */
     public function getAllPermissions(): array
     {
+        $accountId = app(\AbacPermissions\Tenancy\TenantContext::class)->getAccountId();
+        $cacheKey = $this->permissionRequestCacheKey($accountId);
+
+        if ($this->requestHasAttribute($cacheKey)) {
+            return (array) $this->getRequestAttribute($cacheKey, []);
+        }
+
+        // System Zeus bypasses all checks globally.
+        if ($this->isSystemZeus()) {
+            $permissions = ['*'];
+            $this->setRequestAttribute($cacheKey, $permissions);
+            $this->rememberRequestKey($this->permissionKeyRegistry(), $cacheKey);
+            return $permissions;
+        }
+
         // Use the already-loaded collection if available (avoids extra query
         // when User has $with = ['roles'])
         $roleIds = $this->relationLoaded('roles')
             ? $this->roles->pluck('id')
             : $this->roles()->pluck('id');
-
-        $accountId = app(\AbacPermissions\Tenancy\TenantContext::class)->getAccountId();
 
         // Fetch all assignments for this user's roles and direct grants
         $assignments = \AbacPermissions\Models\AssignedPermission::where(function ($query) use ($roleIds, $accountId) {
@@ -176,7 +189,46 @@ trait HasAbac
             return $assignment->getExpandedPermissions();
         });
 
-        return $expandedPermissions->unique()->sort()->values()->toArray();
+        $permissions = $expandedPermissions->unique()->sort()->values()->toArray();
+        $this->setRequestAttribute($cacheKey, $permissions);
+        $this->rememberRequestKey($this->permissionKeyRegistry(), $cacheKey);
+
+        return $permissions;
+    }
+
+    /**
+     * Clears request-level permission and zeus caches for this user.
+     * This should be called after changing role/permission/account assignments.
+     */
+    public function clearPermissionCache(): void
+    {
+        $permissionKeys = (array) $this->getRequestAttribute($this->permissionKeyRegistry(), []);
+        foreach ($permissionKeys as $key) {
+            $this->removeRequestAttribute($key);
+        }
+        $this->removeRequestAttribute($this->permissionKeyRegistry());
+
+        $this->removeRequestAttribute('is_system_zeus_' . $this->id);
+
+        $tenantZeusKeys = (array) $this->getRequestAttribute($this->tenantZeusKeyRegistry(), []);
+        foreach ($tenantZeusKeys as $key) {
+            $this->removeRequestAttribute($key);
+        }
+        $this->removeRequestAttribute($this->tenantZeusKeyRegistry());
+    }
+
+    /**
+     * Clears request-level permission caches for multiple users.
+     *
+     * @param iterable $users
+     */
+    public static function clearPermissionCacheForUsers(iterable $users): void
+    {
+        foreach ($users as $user) {
+            if (is_object($user) && method_exists($user, 'clearPermissionCache')) {
+                $user->clearPermissionCache();
+            }
+        }
     }
 
     /**
@@ -341,4 +393,63 @@ trait HasAbac
         }
     }
 
+    protected function permissionRequestCacheKey($accountId): string
+    {
+        return 'abacpermissions_user_permissions_' . $this->id . '_' . ($accountId ?? 'global');
+    }
+
+    protected function permissionKeyRegistry(): string
+    {
+        return 'abacpermissions_user_permission_keys_' . $this->id;
+    }
+
+    protected function tenantZeusKeyRegistry(): string
+    {
+        return 'abacpermissions_tenant_zeus_keys_' . $this->id;
+    }
+
+    protected function rememberRequestKey(string $registryKey, string $cacheKey): void
+    {
+        $keys = (array) $this->getRequestAttribute($registryKey, []);
+        if (!in_array($cacheKey, $keys, true)) {
+            $keys[] = $cacheKey;
+            $this->setRequestAttribute($registryKey, $keys);
+        }
+    }
+
+    protected function requestHasAttribute(string $key): bool
+    {
+        if (!app()->bound('request')) {
+            return false;
+        }
+
+        return request()->attributes->has($key);
+    }
+
+    protected function getRequestAttribute(string $key, $default = null)
+    {
+        if (!app()->bound('request')) {
+            return $default;
+        }
+
+        return request()->attributes->get($key, $default);
+    }
+
+    protected function setRequestAttribute(string $key, $value): void
+    {
+        if (!app()->bound('request')) {
+            return;
+        }
+
+        request()->attributes->set($key, $value);
+    }
+
+    protected function removeRequestAttribute(string $key): void
+    {
+        if (!app()->bound('request')) {
+            return;
+        }
+
+        request()->attributes->remove($key);
+    }
 }
