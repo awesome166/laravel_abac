@@ -217,6 +217,15 @@ trait HasAbac
         $this->removeRequestAttribute($this->tenantZeusKeyRegistry());
     }
 
+    public function invalidatePermissionCache(): void
+    {
+        $this->clearPermissionCache();
+
+        if (class_exists(\AbacPermissions\Facades\AbacPermissions::class)) {
+            \AbacPermissions\Facades\AbacPermissions::flushCache($this);
+        }
+    }
+
     /**
      * Clears request-level permission caches for multiple users.
      *

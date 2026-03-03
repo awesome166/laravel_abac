@@ -52,6 +52,7 @@ return [
     'cache' => [
         'key_prefix' => 'abacpermissions_',
         'ttl' => 60 * 60, // 1 hour
+        'observe_role_user_queries' => env('ABACPERMISSIONS_OBSERVE_ROLE_USER_QUERIES', true),
     ],
 
     /*
@@ -81,6 +82,8 @@ return [
     'middleware' => [
         'auto_apply_tenant' => env('ABACPERMISSIONS_AUTO_TENANT_MIDDLEWARE', false),
         'auto_apply_groups' => ['api'],
+        'auto_apply_auth_payload' => env('ABACPERMISSIONS_AUTO_AUTH_PAYLOAD_MIDDLEWARE', false),
+        'auth_payload_groups' => ['api'],
     ],
 
     /*

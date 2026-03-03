@@ -45,6 +45,7 @@ ABACPERMISSIONS_SAAS_MODE=true
 ABACPERMISSIONS_ROUTES_ENABLED=true
 ABACPERMISSIONS_ROUTE_PREFIX=abac
 ABACPERMISSIONS_AUTO_TENANT_MIDDLEWARE=false
+ABACPERMISSIONS_AUTO_AUTH_PAYLOAD_MIDDLEWARE=false
 ```
 
 ## Usage
@@ -55,6 +56,8 @@ Out of the box, the package now:
 - Registers built-in ABAC management routes (`/abac/*`) automatically.
 - Applies tenant detection to package routes via middleware alias (`abac.tenant`).
 - Works with your existing auth user model without requiring `HasAbac` methods for core package endpoints.
+- Auto-invalidates permission caches for model and assignment mutations.
+- Enforces Zeus bypass centrally for permission checks and auth payload generation.
 
 You can disable built-in routes via:
 ```env
@@ -902,10 +905,23 @@ Run `vendor/bin/phpunit` to execute the test suite.
 > - `getAllPermissions()` = what the user **has** (for auth checks). `getGrantablePermissions()` = what the user **can give to others**. These are intentionally separate.
 > - Zeus checks: use `$user->isSystemZeus()`, `$user->isTenantZeus($accountId)`, `$user->isZeus()` as early guards before expensive queries.
 > - System Zeus and Tenant Zeus both return all permissions from `getGrantablePermissions()` and are never blocked by `authorizePermissionDelegation()`.
-> - Request-level permission cache invalidation is built into `HasAbac` now. Do **not** create a custom cache-clearing trait unless you need custom behavior.
-> - After manual role/permission writes (outside package controllers), call `\AbacPermissions\Facades\AbacPermissions::flushCache($user)` for each affected user.
-> - Account/role/user permission updates on `AssignedPermission` are automatically observed by the package and will invalidate affected users' cache keys.
-> - If you need to clear only request-level cache on a loaded user instance, use `$user->clearPermissionCache()` (provided by `HasAbac`).
+> - Request-level permission cache invalidation is built into `HasAbac` now. Do **not** create a custom app-level cache trait.
+> - Canonical mutation APIs (use these for role/permission writes):
+>   - `AbacPermissions::assignRole($user, $roleId)`
+>   - `AbacPermissions::syncRoles($user, $roleIds)`
+>   - `AbacPermissions::attachPermissionToRole($roleId, $permissionId, $access, $grantable)`
+>   - `AbacPermissions::syncRolePermissions($roleId, $permissionsPayload)`
+>   - `AbacPermissions::attachPermissionToUser($userId, $permissionId, $accountId, $access, $grantable)`
+>   - `AbacPermissions::syncUserPermissions($userId, $permissionsPayload, $accountId)`
+> - Auto-invalidated operations:
+>   - permission create/update/delete/restore/force-delete
+>   - role create/update/delete/restore/force-delete
+>   - assigned_permission create/update/delete/restore/force-delete
+>   - role-user attach/detach/sync (query observer fallback)
+> - If you mutate DB directly, call `\AbacPermissions\Facades\AbacPermissions::invalidateCache()`.
+> - Frontend helper: `AbacPermissions::getFrontendAuthPayload($user)` returns `permissions`, `is_zeus`, `is_system_zeus` (Zeus payload includes `*`).
+> - Optional middleware alias: `abac.auth` (`ShareAbacAuthPayload`) shares auth payload in JSON (`_abac_auth`) and Inertia (`abac`).
+> - Manual app-level cache observers/hooks are deprecated for this package version.
 
 ## License
 

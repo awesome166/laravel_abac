@@ -2,14 +2,22 @@
 
 namespace AbacPermissions\Observers;
 
-use AbacPermissions\Facades\AbacPermissions;
+use AbacPermissions\Cache\PermissionCacheInvalidator;
 use AbacPermissions\Models\AssignedPermission;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AssignedPermissionObserver
 {
-    public function saved(AssignedPermission $assignment): void
+    public function __construct(
+        protected PermissionCacheInvalidator $invalidator
+    ) {}
+
+    public function created(AssignedPermission $assignment): void
+    {
+        $this->flushAffectedUsers($assignment);
+    }
+
+    public function updated(AssignedPermission $assignment): void
     {
         $this->flushAffectedUsers($assignment);
     }
@@ -19,24 +27,29 @@ class AssignedPermissionObserver
         $this->flushAffectedUsers($assignment);
     }
 
+    public function restored(AssignedPermission $assignment): void
+    {
+        $this->flushAffectedUsers($assignment);
+    }
+
+    public function forceDeleted(AssignedPermission $assignment): void
+    {
+        $this->flushAffectedUsers($assignment);
+    }
+
     protected function flushAffectedUsers(AssignedPermission $assignment): void
     {
-        Cache::increment('abacpermissions_version');
+        $userIds = [];
 
         if ($assignment->assignee_type === 'user') {
-            AbacPermissions::flushCache((object) ['id' => $assignment->assignee_id], $assignment->account_id);
-            return;
+            $userIds[] = (string) $assignment->assignee_id;
         }
 
         if ($assignment->assignee_type === 'role') {
             $userIds = DB::table('role_user')
                 ->where('role_id', $assignment->assignee_id)
                 ->pluck('user_id');
-
-            foreach ($userIds as $userId) {
-                AbacPermissions::flushCache((object) ['id' => $userId], $assignment->account_id);
-            }
-            return;
+            $userIds = $userIds->map(fn ($id) => (string) $id)->all();
         }
 
         if ($assignment->assignee_type === 'account') {
@@ -53,11 +66,9 @@ class AssignedPermissionObserver
                 ->pluck('role_user.user_id');
 
             $affected = $membershipUsers->merge($roleUsers)->unique();
-
-            foreach ($affected as $userId) {
-                AbacPermissions::flushCache((object) ['id' => $userId], $assignment->assignee_id);
-            }
+            $userIds = array_merge($userIds, $affected->map(fn ($id) => (string) $id)->all());
         }
+
+        $this->invalidator->invalidateUsers($userIds);
     }
 }
-

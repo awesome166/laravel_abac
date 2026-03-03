@@ -94,8 +94,8 @@ class OnOffAccessTest extends TestCase
         // Toggle to 'off'
         $assignment->update(['access' => ['off']]);
 
-        // Clear cache by incrementing version
-        \Illuminate\Support\Facades\Cache::increment('abacpermissions_version');
+        // Clear cache through package invalidator
+        AbacPermissions::invalidateCache([$user->id]);
 
         $this->assertFalse(AbacPermissions::hasPermission($user, 'feature.beta'));
 
@@ -103,7 +103,7 @@ class OnOffAccessTest extends TestCase
         $assignment->update(['access' => ['on']]);
 
         // Clear cache again
-        \Illuminate\Support\Facades\Cache::increment('abacpermissions_version');
+        AbacPermissions::invalidateCache([$user->id]);
 
         $this->assertTrue(AbacPermissions::hasPermission($user, 'feature.beta'));
     }

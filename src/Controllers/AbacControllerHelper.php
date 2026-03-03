@@ -377,9 +377,8 @@ trait AbacControllerHelper
         // Clear all permission list caches
         \Illuminate\Support\Facades\Cache::forget('awesome_abac_permissions_list_global');
 
-        // Also increment version to invalidate all user permission caches
-        $version = \Illuminate\Support\Facades\Cache::get('abacpermissions_version', 1);
-        \Illuminate\Support\Facades\Cache::put('abacpermissions_version', $version + 1, now()->addYear());
+        // Also invalidate all user permission caches
+        \AbacPermissions\Facades\AbacPermissions::invalidateCache();
     }
 
     /**

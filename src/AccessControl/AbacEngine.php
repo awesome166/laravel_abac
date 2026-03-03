@@ -2,6 +2,8 @@
 
 namespace AbacPermissions\AccessControl;
 
+use AbacPermissions\Cache\PermissionCacheInvalidator;
+use AbacPermissions\Models\AssignedPermission;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use AbacPermissions\Tenancy\TenantContext;
@@ -9,10 +11,12 @@ use AbacPermissions\Tenancy\TenantContext;
 class AbacEngine
 {
     protected TenantContext $config;
+    protected PermissionCacheInvalidator $invalidator;
 
-    public function __construct(TenantContext $config)
+    public function __construct(TenantContext $config, PermissionCacheInvalidator $invalidator)
     {
         $this->config = $config;
+        $this->invalidator = $invalidator;
     }
 
     /**
@@ -63,6 +67,15 @@ class AbacEngine
 
     public function hasPermission($user, string $permission): bool
     {
+        if ($this->isSystemZeus($user)) {
+            return true;
+        }
+
+        $accountId = $this->config->getAccountId();
+        if ($accountId && $this->isTenantZeus($user, $accountId)) {
+            return true;
+        }
+
         $perms = $this->getPermissions($user);
 
         // Check for System Level Zeus (Universal Bypass)
@@ -76,6 +89,42 @@ class AbacEngine
         // Or cleaner: `resolvePermissions` handles the expansion logic and adds special flags.
 
         return in_array($permission, $perms);
+    }
+
+    public function getFrontendAuthPayload($user): array
+    {
+        if (!$user) {
+            return [
+                'permissions' => [],
+                'is_zeus' => false,
+                'is_system_zeus' => false,
+            ];
+        }
+
+        $accountId = $this->config->getAccountId();
+        $isSystemZeus = $this->isSystemZeus($user);
+        $isTenantZeus = $accountId ? $this->isTenantZeus($user, $accountId) : false;
+
+        $permissions = $this->getPermissions($user);
+        if (($isSystemZeus || $isTenantZeus) && !in_array('*', $permissions, true)) {
+            $permissions[] = '*';
+        }
+
+        return [
+            'permissions' => array_values(array_unique($permissions)),
+            'is_zeus' => $isSystemZeus || $isTenantZeus,
+            'is_system_zeus' => $isSystemZeus,
+        ];
+    }
+
+    public function invalidateCache(?iterable $userIds = null): void
+    {
+        if ($userIds === null) {
+            $this->invalidator->invalidateGlobal();
+            return;
+        }
+
+        $this->invalidator->invalidateUsers($userIds);
     }
 
     public function isSystemZeus($user): bool
@@ -282,26 +331,123 @@ class AbacEngine
      */
     public function flushCache($user, $accountId = null)
     {
-        if ($user && method_exists($user, 'clearPermissionCache')) {
-            $user->clearPermissionCache();
-        }
-
-        // Ideally clear global AND tenant specific.
-        // For simplicity, we might iterate or use tags if supported.
-        // Without tags, we can't easily clear "all contexts" unless we know them.
-        // We will just clear the specific key if known, or assume the user logs out/cache expires.
-        // Or better: Use Cache Tags if available: ['abac_user_{id}'].
-
-        $this->bumpUserVersion($user->id);
-
-        if ($this->supportsTags()) {
-            Cache::tags($this->userCacheTags($user->id))->flush();
+        if (!$user || !isset($user->id)) {
+            $this->invalidator->invalidateGlobal();
             return;
         }
 
-        // Fallback: clear keys for the currently known contexts.
-        Cache::forget($this->makeCacheKey($user->id, $accountId));
-        Cache::forget($this->makeCacheKey($user->id, null));
+        $this->invalidator->invalidateUsers([(string) $user->id]);
+    }
+
+    public function assignRole($user, $roleId): void
+    {
+        $user->roles()->syncWithoutDetaching([$roleId]);
+        $this->invalidator->invalidateUsers([(string) $user->id]);
+    }
+
+    public function removeRole($user, $roleId): void
+    {
+        $user->roles()->detach([$roleId]);
+        $this->invalidator->invalidateUsers([(string) $user->id]);
+    }
+
+    public function syncRoles($user, array $roleIds): void
+    {
+        $user->roles()->sync($roleIds);
+        $this->invalidator->invalidateUsers([(string) $user->id]);
+    }
+
+    public function attachPermissionToRole($roleId, $permissionId, ?array $access = null, bool $grantable = false): void
+    {
+        AssignedPermission::updateOrCreate(
+            [
+                'assignee_type' => 'role',
+                'assignee_id' => $roleId,
+                'permission_id' => $permissionId,
+                'account_id' => null,
+            ],
+            [
+                'access' => $access,
+                'grantable' => $grantable,
+            ]
+        );
+    }
+
+    public function syncRolePermissions($roleId, array $permissions): void
+    {
+        AssignedPermission::query()
+            ->where('assignee_type', 'role')
+            ->where('assignee_id', $roleId)
+            ->whereNull('account_id')
+            ->delete();
+
+        foreach ($permissions as $item) {
+            AssignedPermission::create([
+                'permission_id' => $item['id'],
+                'assignee_type' => 'role',
+                'assignee_id' => $roleId,
+                'account_id' => null,
+                'access' => $item['access'] ?? null,
+                'grantable' => $item['grantable'] ?? false,
+            ]);
+        }
+    }
+
+    public function attachPermissionToUser($userId, $permissionId, $accountId = null, ?array $access = null, bool $grantable = false): void
+    {
+        AssignedPermission::updateOrCreate(
+            [
+                'assignee_type' => 'user',
+                'assignee_id' => $userId,
+                'permission_id' => $permissionId,
+                'account_id' => $accountId,
+            ],
+            [
+                'access' => $access,
+                'grantable' => $grantable,
+            ]
+        );
+    }
+
+    public function syncUserPermissions($userId, array $permissions, $accountId = null): void
+    {
+        $delete = AssignedPermission::query()
+            ->where('assignee_type', 'user')
+            ->where('assignee_id', $userId);
+
+        if ($accountId === null) {
+            $delete->whereNull('account_id');
+        } else {
+            $delete->where('account_id', $accountId);
+        }
+        $delete->delete();
+
+        foreach ($permissions as $item) {
+            AssignedPermission::create([
+                'permission_id' => $item['id'],
+                'assignee_type' => 'user',
+                'assignee_id' => $userId,
+                'account_id' => $accountId,
+                'access' => $item['access'] ?? null,
+                'grantable' => $item['grantable'] ?? false,
+            ]);
+        }
+    }
+
+    public function attachPermissionToAccount($accountId, $permissionId, ?array $access = null, bool $grantable = false): void
+    {
+        AssignedPermission::updateOrCreate(
+            [
+                'assignee_type' => 'account',
+                'assignee_id' => $accountId,
+                'permission_id' => $permissionId,
+                'account_id' => null,
+            ],
+            [
+                'access' => $access,
+                'grantable' => $grantable,
+            ]
+        );
     }
 
     protected function resolvePermissions($user, $accountId): array
@@ -365,11 +511,6 @@ class AbacEngine
             ->pluck("{$rolesTable}.id");
     }
 
-    protected function supportsTags(): bool
-    {
-        return method_exists(Cache::getStore(), 'tags');
-    }
-
     protected function makeCacheKey(string $userId, $accountId = null): string
     {
         $globalVersion = Cache::get('abacpermissions_version', 1);
@@ -390,15 +531,8 @@ class AbacEngine
         return "abacpermissions_user_version_{$userId}";
     }
 
-    protected function bumpUserVersion(string $userId): void
+    protected function supportsTags(): bool
     {
-        $key = $this->userVersionKey($userId);
-
-        if (!Cache::has($key)) {
-            Cache::forever($key, 2);
-            return;
-        }
-
-        Cache::increment($key);
+        return method_exists(Cache::getStore(), 'tags');
     }
 }

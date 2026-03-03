@@ -2,18 +2,37 @@
 
 namespace AbacPermissions\Observers;
 
+use AbacPermissions\Cache\PermissionCacheInvalidator;
 use AbacPermissions\Models\Role;
-use Illuminate\Support\Facades\Cache;
 
 class RoleObserver
 {
-    public function saved(Role $role)
+    public function __construct(
+        protected PermissionCacheInvalidator $invalidator
+    ) {}
+
+    public function created(Role $role): void
     {
-        Cache::increment('abacpermissions_version');
+        $this->invalidator->invalidateGlobal();
     }
 
-    public function deleted(Role $role)
+    public function updated(Role $role): void
     {
-        Cache::increment('abacpermissions_version');
+        $this->invalidator->invalidateGlobal();
+    }
+
+    public function deleted(Role $role): void
+    {
+        $this->invalidator->invalidateGlobal();
+    }
+
+    public function restored(Role $role): void
+    {
+        $this->invalidator->invalidateGlobal();
+    }
+
+    public function forceDeleted(Role $role): void
+    {
+        $this->invalidator->invalidateGlobal();
     }
 }

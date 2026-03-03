@@ -2,33 +2,37 @@
 
 namespace AbacPermissions\Observers;
 
+use AbacPermissions\Cache\PermissionCacheInvalidator;
 use AbacPermissions\Models\Permission;
-use Illuminate\Support\Facades\Cache;
 
 class PermissionObserver
 {
-    public function saved(Permission $permission)
+    public function __construct(
+        protected PermissionCacheInvalidator $invalidator
+    ) {}
+
+    public function created(Permission $permission): void
     {
-        $this->flush();
+        $this->invalidator->invalidateGlobal();
     }
 
-    public function deleted(Permission $permission)
+    public function updated(Permission $permission): void
     {
-        $this->flush();
+        $this->invalidator->invalidateGlobal();
     }
 
-    protected function flush()
+    public function deleted(Permission $permission): void
     {
-        // Flush global ABAC cache because permissions definitions changed
-        // Real implementation should be tag based
-        // Cache::tags('abac')->flush();
-        // Fallback: we can't easily clear all user keys prefix-based in standard drivers (file/redis yes, memcached no).
-        // Let's increment a version key if we use a prefix?
-        // Or assume shorter TTL.
-        // For this package, we'll assume standard Cache::flush() in dev, or Log a warning.
-        // Or better: clear just the affected keys if we track them. We don't.
+        $this->invalidator->invalidateGlobal();
+    }
 
-        // Let's try to clear a specific "abac_version" key that prefixes all keys?
-        Cache::increment('abacpermissions_version');
+    public function restored(Permission $permission): void
+    {
+        $this->invalidator->invalidateGlobal();
+    }
+
+    public function forceDeleted(Permission $permission): void
+    {
+        $this->invalidator->invalidateGlobal();
     }
 }

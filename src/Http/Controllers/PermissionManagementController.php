@@ -103,50 +103,10 @@ class PermissionManagementController extends Controller
         }
         // -------------------------------------------------------------------------
 
-        // Delete existing assignments for this subject
-        $deleteQuery = \AbacPermissions\Models\AssignedPermission::where('assignee_id', $id)
-            ->where('assignee_type', $type);
-
         if ($type === 'user') {
-            if ($accountId === null) {
-                $deleteQuery->whereNull('account_id');
-            } else {
-                $deleteQuery->where('account_id', $accountId);
-            }
+            AbacPermissions::syncUserPermissions($id, $input, $accountId);
         } else {
-            $deleteQuery->whereNull('account_id');
-        }
-
-        $deleteQuery->delete();
-
-        // Create new assignments
-        foreach ($input as $item) {
-            $permId    = $item['id'];
-            $access    = $item['access']    ?? null;
-            $grantable = $item['grantable'] ?? false;
-
-            AssignedPermission::create([
-                'permission_id' => $permId,
-                'assignee_id'   => $id,
-                'assignee_type' => $type,
-                'account_id'    => $type === 'user' ? ($accountId ?? null) : null,
-                'access'        => $access,
-                'grantable'     => $grantable,
-            ]);
-        }
-
-        // Flush cache for affected users
-        if ($type === 'user') {
-            \AbacPermissions\Facades\AbacPermissions::flushCache($subject);
-        } elseif ($type === 'role') {
-            $userIds = \Illuminate\Support\Facades\DB::table('role_user')
-                ->where('role_id', $id)
-                ->pluck('user_id');
-
-            $userIds->each(function ($userId) {
-                $user = (object)['id' => $userId];
-                \AbacPermissions\Facades\AbacPermissions::flushCache($user);
-            });
+            AbacPermissions::syncRolePermissions($id, $input);
         }
 
         return response()->json(['status' => 'synced']);
